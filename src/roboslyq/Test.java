@@ -1,4 +1,4 @@
-package com.roboslyq.roboslyq;
+package roboslyq;
 
 public class Test {
     private static final int COUNT_BITS = Integer.SIZE - 3;

@@ -1,4 +1,4 @@
-package com.roboslyq.roboslyq.threadlocal;
+package roboslyq.threadlocal;
 
 public class ThreadLocalService3 {
     public void add(int add){

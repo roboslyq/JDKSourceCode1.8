@@ -1,4 +1,4 @@
-package com.roboslyq.roboslyq.threadlocal;
+package roboslyq.threadlocal;
 
 public class Source {
     private int age;

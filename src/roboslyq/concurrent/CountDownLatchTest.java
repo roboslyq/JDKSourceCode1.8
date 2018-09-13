@@ -1,4 +1,4 @@
-package com.roboslyq.roboslyq.concurrent;
+package roboslyq.concurrent;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;

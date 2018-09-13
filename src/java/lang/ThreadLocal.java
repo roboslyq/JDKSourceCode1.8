@@ -1,3 +1,28 @@
+/*
+ * Copyright (c) 1997, 2013, Oracle and/or its affiliates. All rights reserved.
+ * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
 package java.lang;
 import java.lang.ref.*;
 import java.util.Objects;
@@ -64,7 +89,7 @@ public class ThreadLocal<T> {
      * zero.
      */
     private static AtomicInteger nextHashCode =
-            new AtomicInteger();
+        new AtomicInteger();
 
     /**
      * The difference between successively generated hash codes - turns
@@ -191,11 +216,11 @@ public class ThreadLocal<T> {
      *
      * @since 1.5
      */
-    public void remove() {
-        ThreadLocalMap m = getMap(Thread.currentThread());
-        if (m != null)
-            m.remove(this);
-    }
+     public void remove() {
+         ThreadLocalMap m = getMap(Thread.currentThread());
+         if (m != null)
+             m.remove(this);
+     }
 
     /**
      * Get the map associated with a ThreadLocal. Overridden in

@@ -265,7 +265,7 @@ public class Object {
      * <pre>
      * getClass().getName() + '@' + Integer.toHexString(hashCode())
      * </pre></blockquote>
-     *
+     * 返回一个类的字符串描述。默认格式为"类名称" + "@" + "16进制的hashCode"
      * @return  a string representation of the object.
      */
     public String toString() {
@@ -523,7 +523,13 @@ public class Object {
      * of this object's monitor. See the {@code notify} method for a
      * description of the ways in which a thread can become the owner of
      * a monitor.
-     *
+     * 线程进入等待状态直接其实线程调用对象的{@link java.lang.Object#notify()}或者
+     * {@link java.lang.Object#notifyAll()}方法。换句话说，这个方法与{@code wait(0)}方法的表现行为
+     * 完全一样。
+     * 这个方法通常配合锁使用，只有获取了锁的对象才能调用wait方法，释放当前对象所并且进入等待状态。直到
+     * 有线程通过 {@code notify}或者 {@code notifyAll}方法来唤醒当前线程。被唤醒之后，当前对象没有特权，需要
+     * 和其它对象一样争抢对象锁。
+     * 由于此方法可能被中断，摆出异常。所以通过与while配合使用。通过while循环来控制尝试多次获取锁。
      * @throws  IllegalMonitorStateException  if the current thread is not
      *               the owner of the object's monitor.
      * @throws  InterruptedException if any thread interrupted the
@@ -582,7 +588,16 @@ public class Object {
      * Any exception thrown by the {@code finalize} method causes
      * the finalization of this object to be halted, but is otherwise
      * ignored.
+     * 方法 {@code finalize} 是被GC收集在判断没有引用指向当前对象执行的方法。
+     * 一个子类重写此方法去处理系统资源或者执行其它清理操作。
+     * 一般约定，当JVM判断没有任何活动的线程的可以到达这个对象可，方法 {@code finalize}就会被调用。
+     * 方法 {@code finalize}可以做任何事情 ，包括将将对象重新关联到活着的Thread上。通常最常见的目的是
+     * 在对象被回收之前进行清理操作。比如，可以在对象被清理之前，关闭打开了的I/O相关的操作。
+     * 当在{@code finalize}方法被调用之后，就不会有其它实质性的操作。对象是否回收，需要JVM再次判断对象有没有重新关联到
+     * 活动的线程或者可用对象，再做最终决定是否要清除对象。
+     * {@code finalize}永远只会调用一次，不会调用多次。
      *
+     * 注：Java&trade;表示java+TM 商标
      * @throws Throwable the {@code Exception} raised by this method
      * @see java.lang.ref.WeakReference
      * @see java.lang.ref.PhantomReference

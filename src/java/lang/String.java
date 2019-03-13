@@ -2865,13 +2865,20 @@ public final class String
      *          trailing white space.
      */
     public String trim() {
+        //默认结束位置
         int len = value.length;
+        //默认起始位置
         int st = 0;
+        //避免多次getfield字节码操作
+        //在遍历实例的char数组的时候，将实例数组的引用赋值给一个本地引用，不需要频繁调用操作用码"getfield"，
+        // 只需要在第一次对本地引用赋值的时候，调用一次getfield,接下来的遍历取值的时候，
+        // 只需要将本地引用压入到栈顶。
         char[] val = value;    /* avoid getfield opcode */
-
+        //循环判断首部，移动起始位置。
         while ((st < len) && (val[st] <= ' ')) {
             st++;
         }
+        //循环判断尾部，移动结束位置
         while ((st < len) && (val[len - 1] <= ' ')) {
             len--;
         }

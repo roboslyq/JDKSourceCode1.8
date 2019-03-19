@@ -1180,6 +1180,7 @@ public final class String
      *
      * @see     java.text.Collator#compare(String, String)
      * @since   1.2
+     *
      */
     public static final Comparator<String> CASE_INSENSITIVE_ORDER
                                          = new CaseInsensitiveComparator();

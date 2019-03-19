@@ -36,11 +36,13 @@ import java.util.function.Supplier;
  * copy of the variable.  {@code ThreadLocal} instances are typically private
  * static fields in classes that wish to associate state with a thread (e.g.,
  * a user ID or Transaction ID).
- *
+ * 当前类提供了线程局部(thread-local)变量。这些变量与线程拥有的普通变量不同，它是一个独立的变量副本。
+ * 通常ThreadLocal希望被申明为 private static 修饰域，从而线程可以方便的关联到这个变量。
  * <p>For example, the class below generates unique identifiers local to each
  * thread.
  * A thread's id is assigned the first time it invokes {@code ThreadId.get()}
  * and remains unchanged on subsequent calls.
+ * 例如，以下类对每个线程生成唯一的局部标识符。 线程 ID 是在第一次调用 ThreadId.get() 时分配的，并且在后续调用中不会更改。
  * <pre>
  * import java.util.concurrent.atomic.AtomicInteger;
  *
@@ -67,7 +69,8 @@ import java.util.function.Supplier;
  * instance is accessible; after a thread goes away, all of its copies of
  * thread-local instances are subject to garbage collection (unless other
  * references to these copies exist).
- *
+ * 每个线程都保持对其线程局部变量副本的隐式引用，只要线程是活动的并且 ThreadLocal 实例是可访问的；
+ * 在线程消失之后，其线程局部实例的所有副本都会被垃圾回收（除非存在对这些副本的其他引用）。
  * @author  Josh Bloch and Doug Lea
  * @since   1.2
  */

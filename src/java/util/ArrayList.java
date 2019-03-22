@@ -473,6 +473,7 @@ public class ArrayList<E> extends AbstractList<E>
         rangeCheckForAdd(index);
 
         ensureCapacityInternal(size + 1);  // Increments modCount!!
+        //将当前数组的所有值往后移一位。留一个index空位给指定元素。
         System.arraycopy(elementData, index, elementData, index + 1,
                          size - index);
         elementData[index] = element;

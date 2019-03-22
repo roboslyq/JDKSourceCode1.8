@@ -32,7 +32,8 @@ import java.util.function.UnaryOperator;
  * interface has precise control over where in the list each element is
  * inserted.  The user can access elements by their integer index (position in
  * the list), and search for elements in the list.<p>
- *
+ * 一个有序的集合。用户可以通过这个接口精确的控制每一个保存在List中的元素。
+ * 通常我们是通过一个整数索引去定位一个元素在List的位置。
  * Unlike sets, lists typically allow duplicate elements.  More formally,
  * lists typically allow pairs of elements <tt>e1</tt> and <tt>e2</tt>
  * such that <tt>e1.equals(e2)</tt>, and they typically allow multiple
@@ -40,7 +41,9 @@ import java.util.function.UnaryOperator;
  * that someone might wish to implement a list that prohibits duplicates, by
  * throwing runtime exceptions when the user attempts to insert them, but we
  * expect this usage to be rare.<p>
- *
+ * 与set不一样，lists是允许有重复元素的(索引定位,元素重复不影响)。
+ * 同时也允许包含多个空元素。
+ * 如果有人想阻止list添加重复元素^_^。
  * The <tt>List</tt> interface places additional stipulations, beyond those
  * specified in the <tt>Collection</tt> interface, on the contracts of the
  * <tt>iterator</tt>, <tt>add</tt>, <tt>remove</tt>, <tt>equals</tt>, and

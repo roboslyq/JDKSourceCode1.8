@@ -110,11 +110,13 @@ public class ArrayList<E> extends AbstractList<E>
 
     /**
      * Default initial capacity.
+     * 默认初始容量
      */
     private static final int DEFAULT_CAPACITY = 10;
 
     /**
      * Shared empty array instance used for empty instances.
+     * 空数组实现
      */
     private static final Object[] EMPTY_ELEMENTDATA = {};
 
@@ -130,12 +132,15 @@ public class ArrayList<E> extends AbstractList<E>
      * The capacity of the ArrayList is the length of this array buffer. Any
      * empty ArrayList with elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA
      * will be expanded to DEFAULT_CAPACITY when the first element is added.
+     *保存元素的数组。数组的长度即容器的大小。
+     * 如果是空集合，是elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA。并且此时若插入第一个元素
+     * 则大小将调整为DEFAULT_CAPACITY。
      */
     transient Object[] elementData; // non-private to simplify nested class access
 
     /**
      * The size of the ArrayList (the number of elements it contains).
-     *
+     * 数组大小
      * @serial
      */
     private int size;
@@ -189,6 +194,9 @@ public class ArrayList<E> extends AbstractList<E>
      * Trims the capacity of this <tt>ArrayList</tt> instance to be the
      * list's current size.  An application can use this operation to minimize
      * the storage of an <tt>ArrayList</tt> instance.
+     * ArrayList扩容时会预申请多一点空间，1.5倍+1，而不是两倍
+     * 这样就会出现当size() = 1000的时候，ArrayList已经申请了1200空间的情况
+     * trimToSize 的作用只是去掉预留元素位置，就是删除多余的200，改为只申请1000,内存紧张的时候会用到.
      */
     public void trimToSize() {
         modCount++;
@@ -228,6 +236,7 @@ public class ArrayList<E> extends AbstractList<E>
     }
 
     private void ensureExplicitCapacity(int minCapacity) {
+        //数组扩容资料
         modCount++;
 
         // overflow-conscious code
@@ -240,6 +249,7 @@ public class ArrayList<E> extends AbstractList<E>
      * Some VMs reserve some header words in an array.
      * Attempts to allocate larger arrays may result in
      * OutOfMemoryError: Requested array size exceeds VM limit
+     * 数组最大值
      */
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
@@ -248,10 +258,12 @@ public class ArrayList<E> extends AbstractList<E>
      * number of elements specified by the minimum capacity argument.
      *
      * @param minCapacity the desired minimum capacity
+     * 扩容
      */
     private void grow(int minCapacity) {
         // overflow-conscious code
         int oldCapacity = elementData.length;
+        //(oldCapacity >> 1)除以2，即相当于扩容1.5倍
         int newCapacity = oldCapacity + (oldCapacity >> 1);
         if (newCapacity - minCapacity < 0)
             newCapacity = minCapacity;
@@ -306,6 +318,7 @@ public class ArrayList<E> extends AbstractList<E>
      * More formally, returns the lowest index <tt>i</tt> such that
      * <tt>(o==null&nbsp;?&nbsp;get(i)==null&nbsp;:&nbsp;o.equals(get(i)))</tt>,
      * or -1 if there is no such index.
+     * 循环索引，找到是否包含相应对像。
      */
     public int indexOf(Object o) {
         if (o == null) {
@@ -345,10 +358,12 @@ public class ArrayList<E> extends AbstractList<E>
      * elements themselves are not copied.)
      *
      * @return a clone of this <tt>ArrayList</tt> instance
+     * Arrays.copyOf 为浅clone
      */
     public Object clone() {
         try {
             ArrayList<?> v = (ArrayList<?>) super.clone();
+
             v.elementData = Arrays.copyOf(elementData, size);
             v.modCount = 0;
             return v;
@@ -439,6 +454,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @param element element to be stored at the specified position
      * @return the element previously at the specified position
      * @throws IndexOutOfBoundsException {@inheritDoc}
+     *  {@set} 字面意思为设置值。所以会覆盖。返回旧值
      */
     public E set(int index, E element) {
         rangeCheck(index);
@@ -453,6 +469,7 @@ public class ArrayList<E> extends AbstractList<E>
      *
      * @param e element to be appended to this list
      * @return <tt>true</tt> (as specified by {@link Collection#add})
+     * 添加一个值在末尾追加
      */
     public boolean add(E e) {
         ensureCapacityInternal(size + 1);  // Increments modCount!!
@@ -468,6 +485,7 @@ public class ArrayList<E> extends AbstractList<E>
      * @param index index at which the specified element is to be inserted
      * @param element element to be inserted
      * @throws IndexOutOfBoundsException {@inheritDoc}
+     * 指定位置添加数据，会发生位移。通过System.arraycopy移动数组
      */
     public void add(int index, E element) {
         rangeCheckForAdd(index);
@@ -516,6 +534,7 @@ public class ArrayList<E> extends AbstractList<E>
      *
      * @param o element to be removed from this list, if present
      * @return <tt>true</tt> if this list contained the specified element
+     * 只会移除一个对象。
      */
     public boolean remove(Object o) {
         if (o == null) {
@@ -550,6 +569,7 @@ public class ArrayList<E> extends AbstractList<E>
     /**
      * Removes all of the elements from this list.  The list will
      * be empty after this call returns.
+     * GC自动回收，所以elementData[i] = null;即可清除。
      */
     public void clear() {
         modCount++;

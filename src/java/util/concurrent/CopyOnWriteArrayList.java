@@ -87,6 +87,7 @@ import java.util.function.UnaryOperator;
  * @since 1.5
  * @author Doug Lea
  * @param <E> the type of elements held in this collection
+ * 线程安全的ArrayList。Doug Lea
  */
 public class CopyOnWriteArrayList<E>
     implements List<E>, RandomAccess, Cloneable, java.io.Serializable {
@@ -434,10 +435,15 @@ public class CopyOnWriteArrayList<E>
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            //copyOnWrite原理实现
+            //获取当前数组
             Object[] elements = getArray();
             int len = elements.length;
+            //创建新数组(每次),长度加1，所以不需要像ArrayList一样扩容。
             Object[] newElements = Arrays.copyOf(elements, len + 1);
+            //添加新值
             newElements[len] = e;
+            //将当前array指向新数组。
             setArray(newElements);
             return true;
         } finally {

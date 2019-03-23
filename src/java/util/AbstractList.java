@@ -66,6 +66,8 @@ package java.util;
  * @author  Josh Bloch
  * @author  Neal Gafter
  * @since 1.2
+ *
+ * 没有考虑线程问题。
  */
 
 public abstract class AbstractList<E> extends AbstractCollection<E> implements List<E> {
@@ -597,6 +599,7 @@ public abstract class AbstractList<E> extends AbstractCollection<E> implements L
      * bogus {@code ConcurrentModificationExceptions}.  If an implementation
      * does not wish to provide fail-fast iterators, this field may be
      * ignored.
+     * 数组扩容次数
      */
     protected transient int modCount = 0;
 

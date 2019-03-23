@@ -104,6 +104,7 @@ import java.util.Comparators;
  * @see Comparable
  * @see java.io.Serializable
  * @since 1.2
+ * 函数式接口
  */
 @FunctionalInterface
 public interface Comparator<T> {

@@ -78,12 +78,20 @@ import java.util.function.Consumer;
  * @since 1.5
  * @author Josh Bloch, Doug Lea
  * @param <E> the type of elements held in this collection
+ * 1、优先队列的作用是能保证每次取出的元素都是队列中权值最小的。
+ * 2、元素在队列中的队列中权值评判可以通过元素本身的自然顺序（natural ordering），
+ *           也可以通过构造时传入的比较器（Comparator)
+ * 3、PriorityQueue实现了Queue接口，不允许放入null元素；
+ * 4、因为是优先队列，每次出栈都是权值最小的，因此使用最小二叉堆很容器实现queue[0]就是权值最小的元素。
+ * 5、通过堆实现，具体说是通过完全二叉树（complete binary tree）实现的小顶堆
+ *    （任意一个非叶子节点的权值，都不大于其左右子节点的权值（左右节点大小值不确定，优先放左节点。）），也就意味着可以通过数组来作为PriorityQueue的底层实现。
+ * 6、保存在优化队列中的元素，必须实现{@linkplain Comparable}接口
  */
 public class PriorityQueue<E> extends AbstractQueue<E>
     implements java.io.Serializable {
 
     private static final long serialVersionUID = -7720805057305804111L;
-
+    //默认初始化容器大小
     private static final int DEFAULT_INITIAL_CAPACITY = 11;
 
     /**
@@ -93,23 +101,30 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      * natural ordering, if comparator is null: For each node n in the
      * heap and each descendant d of n, n <= d.  The element with the
      * lowest value is in queue[0], assuming the queue is nonempty.
+     * 1、基于数组实现数据存储
+     * 2、二叉小顶堆(全二叉树):数组中queue[n] 对应的2个子元素分别保存在queue[2*n+1] and queue[2*(n+1)]
+     *        且  queue[2*n+1] <= queue[2*(n+1)] （即左边叶子节点不能大于左右叶子节点）
+     * 3、可以通过比较器(comparator)或者元素的自然顺序实现有序性。
      */
     transient Object[] queue; // non-private to simplify nested class access
 
     /**
      * The number of elements in the priority queue.
+     * 队列大小
      */
     private int size = 0;
 
     /**
      * The comparator, or null if priority queue uses elements'
      * natural ordering.
+     * 排序比较器
      */
     private final Comparator<? super E> comparator;
 
     /**
      * The number of times this priority queue has been
      * <i>structurally modified</i>.  See AbstractList for gory details.
+     * 队列结构改变（即扩容或者缩容）
      */
     transient int modCount = 0; // non-private to simplify nested class access
 
@@ -285,7 +300,7 @@ public class PriorityQueue<E> extends AbstractQueue<E>
 
     /**
      * Increases the capacity of the array.
-     *
+     * 扩大数组容量，即扩容。
      * @param minCapacity the desired minimum capacity
      */
     private void grow(int minCapacity) {
@@ -316,6 +331,9 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      *         compared with elements currently in this priority queue
      *         according to the priority queue's ordering
      * @throws NullPointerException if the specified element is null
+     * add(E e)和offer(E e)的语义相同，都是向优先队列中插入元素，
+     * Queue接口规定二者对插入失败时的处理不同，前者在插入失败时抛出异常，后则则会返回false。
+     * 对于PriorityQueue这add(E e)中实现直接调用了offer(e)，所以这两方法是等同的没有任何差别。
      */
     public boolean add(E e) {
         return offer(e);
@@ -329,23 +347,33 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      *         compared with elements currently in this priority queue
      *         according to the priority queue's ordering
      * @throws NullPointerException if the specified element is null
+     * 1、队列主要是用于生产消费模型。所以新增元素通过offer(提供)这个特有单词。
+     * 2、默认元素插在最后一位
+     * 3、插入新元素可能破坏二叉堆的结构，然后通过siftUp(i, e)调整二叉堆的结构。
      */
     public boolean offer(E e) {
+        //不允许为空元素，因为空元素无法排序。
         if (e == null)
             throw new NullPointerException();
         modCount++;
         int i = size;
         if (i >= queue.length)
+            //自动扩容
             grow(i + 1);
         size = i + 1;
         if (i == 0)
+            //队列原来为空，这是插入的第一个元素
             queue[0] = e;
         else
+            //新增元素，调整堆结构
             siftUp(i, e);
         return true;
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 优先队列（永远弹出第0个元素，但不删除）
+     */
     public E peek() {
         return (size == 0) ? null : (E) queue[0];
     }
@@ -583,15 +611,23 @@ public class PriorityQueue<E> extends AbstractQueue<E>
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 消费第一条数据（会删除数据并补齐）
+     */
     public E poll() {
         if (size == 0)
             return null;
+        //消费后的Queue大小(即数组元素最后一个元素的位置)
         int s = --size;
         modCount++;
+        //获取数据(第0位置)
         E result = (E) queue[0];
+        //取出queue中最新插入的记录
         E x = (E) queue[s];
+        //在Queue中删除最后一条元素(因为最后一个元素已经填充到Queue[0])。
         queue[s] = null;
         if (s != 0)
+            //调整树结构，从0开始（即从上往下调整）
             siftDown(0, x);
         return result;
     }
@@ -642,17 +678,27 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      */
     private void siftUp(int k, E x) {
         if (comparator != null)
+            //有比较器
             siftUpUsingComparator(k, x);
         else
+            //使用默认值
             siftUpComparable(k, x);
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 新加入的元素x可能会破坏小顶堆的性质，因此需要进行调整。
+     * 调整的过程为：从k指定的位置开始，将x逐层与当前点的parent进行比较并交换，
+     * 直到满足x >= queue[parent]为止。注意这里的比较以是元素的自然顺序，也可以是依靠比较器的顺序。
+     */
     private void siftUpComparable(int k, E x) {
         Comparable<? super E> key = (Comparable<? super E>) x;
+        //一直循环，直到当前插入数据小于左右子节点。
         while (k > 0) {
+            //parentNo = (nodeNo-1)/2
             int parent = (k - 1) >>> 1;
             Object e = queue[parent];
+            //比较当前插入的数据与父节点的数据大小
             if (key.compareTo((E) e) >= 0)
                 break;
             queue[k] = e;
@@ -662,15 +708,23 @@ public class PriorityQueue<E> extends AbstractQueue<E>
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     *
+     */
     private void siftUpUsingComparator(int k, E x) {
         while (k > 0) {
+            //获取父节点：parentNo = childrenNo -1 / 2;
             int parent = (k - 1) >>> 1;
             Object e = queue[parent];
+            //如果此时子节点元素大于父节点元素，则已经调整完成(通过break中断循环)。
             if (comparator.compare(x, (E) e) >= 0)
                 break;
+            //否则，子节点和父节点进行交换
             queue[k] = e;
+            //将parent位置设置为k。进行下一轮比较(即父节点与相应的父节点比较，一直到queue[0])
             k = parent;
         }
+        //
         queue[k] = x;
     }
 
@@ -681,6 +735,7 @@ public class PriorityQueue<E> extends AbstractQueue<E>
      *
      * @param k the position to fill
      * @param x the item to insert
+     *
      */
     private void siftDown(int k, E x) {
         if (comparator != null)
@@ -709,17 +764,23 @@ public class PriorityQueue<E> extends AbstractQueue<E>
     }
 
     @SuppressWarnings("unchecked")
+    //有元素出队时，二叉堆结构调整
     private void siftDownUsingComparator(int k, E x) {
+        //因为最小二堆满足完全二叉树结构，因为左树最大深度值小于等于size的一半。
         int half = size >>> 1;
         while (k < half) {
+            //左节点
             int child = (k << 1) + 1;
             Object c = queue[child];
+            //右节点
             int right = child + 1;
+            //取左右节点中较小的节点
             if (right < size &&
                 comparator.compare((E) c, (E) queue[right]) > 0)
                 c = queue[child = right];
             if (comparator.compare(x, (E) c) <= 0)
                 break;
+            //然后用c取代原来的值
             queue[k] = c;
             k = child;
         }

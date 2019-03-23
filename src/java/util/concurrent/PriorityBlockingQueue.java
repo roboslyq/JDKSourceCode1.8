@@ -157,11 +157,13 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
     /**
      * The comparator, or null if priority queue uses elements'
      * natural ordering.
+     * 优先级队列所以有个比较器comparator用来比较元素大小。
      */
     private transient Comparator<? super E> comparator;
 
     /**
      * Lock used for all public operations
+     * lock独占锁对象用来控制同时只能有一个线程可以进行入队出队操作
      */
     private final ReentrantLock lock;
 
@@ -172,6 +174,8 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
 
     /**
      * Spinlock for allocation, acquired via CAS.
+     * Spinlock:自旋锁
+     * 用来在扩容队列时候做cas的，目的是保证只有一个线程可以进行扩容
      */
     private transient volatile int allocationSpinLock;
 
@@ -286,12 +290,25 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      * @param oldCap the length of the array
      */
     private void tryGrow(Object[] array, int oldCap) {
+        /**
+         * 先放开了锁，然后通过CAS设置allocationSpinLock来判断哪个线程获得了扩容权限，扩容权限争取到了就是计算大小，分配数组。
+         * 如果没抢到权限就会让出CPU使用权。最后还是要锁住开始真正的扩容。
+         * 那这里为什么要先释放锁然后然后再使用cas控制呢？
+         * 因为扩容时候是需要花时间的，如果这些操作时候还占用锁那么其他线程在这个时候是不能进行出队操作的，
+         * 所以在扩容前释放锁，这允许其他出队线程可以进行出队操作，但是由于释放了锁，所以也允许在扩容时候进行入队
+         * 操作，这就会导致多个线程进行扩容会出现问题，所以这里使用了一个spinlock用cas控制只有一个线程可以进行扩容，
+         * 失败的线程调用Thread.yield()让出cpu，目的意在让扩容线程扩容后优先调用lock.lock重新获取锁，
+         * 但是这得不到一定的保证，有可能调用Thread.yield()的线程先获取了锁。
+         */
+
         lock.unlock(); // must release and then re-acquire main lock
         Object[] newArray = null;
+        //cas成功则扩容
         if (allocationSpinLock == 0 &&
             UNSAFE.compareAndSwapInt(this, allocationSpinLockOffset,
                                      0, 1)) {
             try {
+                //oldGap<64则扩容新增oldcap+2,否者扩容50%，并且最大为MAX_ARRAY_SIZE
                 int newCap = oldCap + ((oldCap < 64) ?
                                        (oldCap + 2) : // grow faster if small
                                        (oldCap >> 1));
@@ -307,9 +324,17 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
                 allocationSpinLock = 0;
             }
         }
+        //第一个线程cas成功后，第二个线程会进入这个地方，
+        // 然后第二个线程让出cpu，尽量让第一个线程执行下面点获取锁，但是这得不到肯定的保证。
         if (newArray == null) // back off if another thread is allocating
             Thread.yield();
         lock.lock();
+        /**
+         *copy元素数据到新数组为啥放到获取锁后面那?
+         * 原因应该是因为可见性问题，因为queue并没有被volatile修饰。另
+         * 外有可能在扩容时候进行了出队操作，如果直接拷贝可能看到的数组元素不是最新的。
+         * 而通过调用Lock后，获取的数组则是最新的，并且在释放锁前 数组内容不会变化。
+         */
         if (newArray != null && queue == array) {
             queue = newArray;
             System.arraycopy(array, 0, newArray, 0, oldCap);
@@ -473,6 +498,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
      *         with elements currently in the priority queue according to the
      *         priority queue's ordering
      * @throws NullPointerException if the specified element is null
+     * 此处与{@link PriorityQueue}的实现基本一致区别就是在于加锁了，并发出了非空信号唤醒阻塞的获取线程。
      */
     public boolean offer(E e) {
         if (e == null)
@@ -481,15 +507,21 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
         lock.lock();
         int n, cap;
         Object[] array;
+        //如果当前元素个数>=队列容量，则扩容(1)
         while ((n = size) >= (cap = (array = queue).length))
+            //关键扩容代码
             tryGrow(array, cap);
         try {
             Comparator<? super E> cmp = comparator;
+            //默认比较器为null
             if (cmp == null)
                 siftUpComparable(n, e, array);
             else
+                //自定义比较器(3)
                 siftUpUsingComparator(n, e, array, cmp);
+            //队列元素增加1
             size = n + 1;
+            // 激活notEmpty的条件队列里面的一个阻塞线程
             notEmpty.signal();
         } finally {
             lock.unlock();
@@ -1029,6 +1061,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
 
     // Unsafe mechanics
     private static final sun.misc.Unsafe UNSAFE;
+
     private static final long allocationSpinLockOffset;
     static {
         try {

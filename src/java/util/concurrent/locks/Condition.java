@@ -451,6 +451,7 @@ public interface Condition {
 
     /**
      * Wakes up one waiting thread.
+     * 唤醒正在等待的线程
      *
      * <p>If any threads are waiting on this condition then one
      * is selected for waking up. That thread must then re-acquire the

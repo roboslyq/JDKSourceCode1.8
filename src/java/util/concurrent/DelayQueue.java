@@ -69,8 +69,9 @@ import java.util.*;
  */
 public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
     implements BlockingQueue<E> {
-
+    //可重入锁
     private final transient ReentrantLock lock = new ReentrantLock();
+    //用于根据delay时间排序的优先级队列
     private final PriorityQueue<E> q = new PriorityQueue<E>();
 
     /**
@@ -88,6 +89,12 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      * waiting thread, but not necessarily the current leader, is
      * signalled.  So waiting threads must be prepared to acquire
      * and lose leadership while waiting.
+     * DelayQueue实现Leader-Folloer pattern,用于优化阻塞通知:
+     * 1、当存在多个take线程时，同时只生效一个，即，leader线程
+     * 2、当leader存在时，其它的take线程均为follower，其等待是通过condition实现的
+     * 3、当leader不存在时，当前线程即成为leader，在delay之后，将leader角色释放还原
+     * 4、最后如果队列还有内容，且leader空缺，则调用一次condition的signal，唤醒挂起的take线程，其中之一将成为新的leader
+     * 5、最后在finally中释放锁
      */
     private Thread leader = null;
 
@@ -95,6 +102,7 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      * Condition signalled when a newer element becomes available
      * at the head of the queue or a new thread may need to
      * become leader.
+     * 用于实现阻塞和通知的Condition对象
      */
     private final Condition available = lock.newCondition();
 
@@ -135,10 +143,14 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      */
     public boolean offer(E e) {
         final ReentrantLock lock = this.lock;
+        // 1、执行加锁操作
         lock.lock();
         try {
+            //2、元素添加到优先级队列中
             q.offer(e);
+            //3、查看元素是否为队首
             if (q.peek() == e) {
+                //4、如果是队首的话，设置leader为空，唤醒所有等待的队列释放锁。
                 leader = null;
                 available.signal();
             }
@@ -200,28 +212,57 @@ public class DelayQueue<E extends Delayed> extends AbstractQueue<E>
      *
      * @return the head of this queue
      * @throws InterruptedException {@inheritDoc}
+     * 取出延迟时间已到的数据
+     * 1、执行加锁操作
+       2、取出优先级队列元素q的队首
+       3、如果元素q的队首/队列为空,阻塞请求
+       4、如果元素q的队首(first)不为空,获得这个元素的delay时间值
+       5、如果first的延迟delay时间值为0的话,说明该元素已经到了可以使用的时间,调用poll方法弹出该元素,跳出方法
+       6、如果first的延迟delay时间值不为0的话,释放元素first的引用,避免内存泄露
+       7、判断leader元素是否为空,不为空的话阻塞当前线程
+       8、如果leader元素为空的话,把当前线程赋值给leader元素,然后阻塞delay的时间,即等待队首到达可以出队的时间,在finally块中释放leader元素的引用
+       9、循环执行从1~8的步骤
+      10、如果leader为空并且优先级队列不为空的情况下(判断还有没有其他后续节点),调用signal通知其他的线程
+      11、 执行解锁操作
      */
     public E take() throws InterruptedException {
         final ReentrantLock lock = this.lock;
         lock.lockInterruptibly();
         try {
             for (;;) {
+                //取出最小二叉堆中queue[0]，即最先到期的数据
                 E first = q.peek();
+                //为空表示没有数据，调用等待。等待offer或add等操作添加数据，然后唤醒。
                 if (first == null)
                     available.await();
                 else {
+                    //获取到期时间
                     long delay = first.getDelay(NANOSECONDS);
                     if (delay <= 0)
+                        //已经到期则直接取出并删除queue中数据
                         return q.poll();
+                    /**
+                     * don't retain ref while waiting:
+                     * 想想假设现在延迟队列里面有三个对象。
+                     * 线程A进来获取first,然后进入 else 的else ,设置了leader为当前线程A
+                     * 线程B进来获取first,进入else的阻塞操作,然后无限期等待
+                     * 这时在JDK 1.7下面他是持有first引用的
+                     * 如果线程A阻塞完毕,获取对象成功,出队,这个对象理应被GC回收,但是他还被线程B持有着,GC链可达,所以不能回收这个first.
+                     * 假设还有线程C 、D、E.. 持有对象1引用,那么无限期的不能回收该对象1引用了,那么就会造成内存泄露.
+                     */
                     first = null; // don't retain ref while waiting
                     if (leader != null)
+                        //leader不为空，则等待leader处理
                         available.await();
                     else {
+                        //将当前线程设置为leader线程，开始处理数据
                         Thread thisThread = Thread.currentThread();
                         leader = thisThread;
                         try {
+                            //等待延迟时间
                             available.awaitNanos(delay);
                         } finally {
+                            //释放leader
                             if (leader == thisThread)
                                 leader = null;
                         }

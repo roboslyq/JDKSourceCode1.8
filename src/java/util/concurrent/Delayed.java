@@ -51,10 +51,13 @@ public interface Delayed extends Comparable<Delayed> {
     /**
      * Returns the remaining delay associated with this object, in the
      * given time unit.
-     *
+     * 返回剩余的超时时间。
      * @param unit the time unit
      * @return the remaining delay; zero or negative values indicate
      * that the delay has already elapsed
+     * 返回0或者小于0，表示时间已经过期。
+     * 所以实现此接口的对象通过会有一个字段保存时间，然后与系统当前时间比较。来实现
+     * 延迟效果。
      */
     long getDelay(TimeUnit unit);
 }

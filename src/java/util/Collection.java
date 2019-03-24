@@ -38,7 +38,9 @@ import java.util.stream.StreamSupport;
  * specific subinterfaces like <tt>Set</tt> and <tt>List</tt>.  This interface
  * is typically used to pass collections around and manipulate them where
  * maximum generality is desired.
- *
+ * 是collection继承体系的根接口。一个collection包含N多个元素，每一个元素代表了一个对象。
+ * 有些集合实现允许有重复的元素，有些则不允许有重复。有些有序有些无序。JDK没有提供此接口的任何实现：而是通过相应的子
+ * 接口来提供具体实现。比如List，Set和Queue等。这个接口最典型的特点就是通用。通用常用来传递相关集合和操作这些集合。
  * <p><i>Bags</i> or <i>multisets</i> (unordered collections that may contain
  * duplicate elements) should implement this interface directly.
  *
@@ -53,7 +55,9 @@ import java.util.stream.StreamSupport;
  * There is no way to enforce this convention (as interfaces cannot contain
  * constructors) but all of the general-purpose <tt>Collection</tt>
  * implementations in the Java platform libraries comply.
- *
+ * 所有的collection实现者应该遵守一个协议："提供两个通用的构造函数"
+ *  1、无参构造函数
+ *  2、包含一个参数(collectoin)，用来创建一个新的collection但包含构造函数传入的参数
  * <p>The "destructive" methods contained in this interface, that is, the
  * methods that modify the collection on which they operate, are specified to
  * throw <tt>UnsupportedOperationException</tt> if this collection does not
@@ -63,7 +67,8 @@ import java.util.stream.StreamSupport;
  * the {@link #addAll(Collection)} method on an unmodifiable collection may,
  * but is not required to, throw the exception if the collection to be added
  * is empty.
- *
+ * 因为collection设计模式是一个总接口，具体的实现者可能不需要支持所有的接口。
+ * 此时，不支持的方法应该遵守约定抛出一个“UnsupportedOperationException”
  * <p><a name="optional-restrictions">
  * Some collection implementations have restrictions on the elements that
  * they may contain.</a>  For example, some implementations prohibit null elements,
@@ -78,6 +83,7 @@ import java.util.stream.StreamSupport;
  * exception or it may succeed, at the option of the implementation.
  * Such exceptions are marked as "optional" in the specification for this
  * interface.
+ * 对于集合可以保存的元素，不同的集合可能有不同的要求。例如一些集合可以保存空集合，有些集合则要求元素不能为空。
  *
  * <p>It is up to each collection to determine its own synchronization
  * policy.  In the absence of a stronger guarantee by the
@@ -86,7 +92,7 @@ import java.util.stream.StreamSupport;
  * thread; this includes direct invocations, passing the collection to
  * a method that might perform invocations, and using an existing
  * iterator to examine the collection.
- *
+ * 鼓励不同集合自己去决定同步策略
  * <p>Many methods in Collections Framework interfaces are defined in
  * terms of the {@link Object#equals(Object) equals} method.  For example,
  * the specification for the {@link #contains(Object) contains(Object o)}
@@ -139,6 +145,8 @@ import java.util.stream.StreamSupport;
  * @see     Arrays
  * @see     AbstractCollection
  * @since 1.2
+ * 1、子类实现类经常覆盖当前接口方法的原因：子类的相同方法语义发生了变化，所以需要重新写相关注释。
+ * 2、
  */
 
 public interface Collection<E> extends Iterable<E> {
@@ -150,6 +158,7 @@ public interface Collection<E> extends Iterable<E> {
      * <tt>Integer.MAX_VALUE</tt>.
      *
      * @return the number of elements in this collection
+     *
      */
     int size();
 

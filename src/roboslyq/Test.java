@@ -21,6 +21,27 @@ public class Test {
         System.out.println(TIDYING);
         System.out.println(TERMINATED);
 
+        Test test = new Test();
+        try {
+            int result = test.fibonacci(10);
+            System.out.println("fibonacci = "+result);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public int fibonacci(int i) throws Exception {
+        if(i<= 0){
+            throw  new Exception();
+        }
+        if(i == 0){
+            return 0;
+        }else if(i== 1){
+            return 1;
+        }else{
+            return fibonacci(i-1)+fibonacci(i-2);
+        }
     }
 
 }

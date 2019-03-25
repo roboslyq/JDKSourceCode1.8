@@ -565,6 +565,9 @@ public interface Collection<E> extends Iterable<E> {
      *
      * @return a {@code Spliterator} over the elements in this collection
      * @since 1.8
+     * Spliterator是一个可分割迭代器(splitable iterator)，可以和iterator顺序遍历迭代器类似。
+     * jdk1.8发布后，对于并行处理的能力大大增强，Spliterator就是为了并行遍历元素而设计的一个迭代器，
+     * jdk1.8中的集合框架中的数据结构都默认实现了spliterator
      */
     @Override
     default Spliterator<E> spliterator() {

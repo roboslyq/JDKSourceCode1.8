@@ -110,7 +110,8 @@ public interface SortedSet<E> extends Set<E> {
      * Returns the comparator used to order the elements in this set,
      * or <tt>null</tt> if this set uses the {@linkplain Comparable
      * natural ordering} of its elements.
-     *
+     * 比较器，排序使用。当元素使用默认的{@linkplain Comparable}排序时
+     * 此字段为空。
      * @return the comparator used to order the elements in this set,
      *         or <tt>null</tt> if this set uses the natural ordering
      *         of its elements
@@ -125,7 +126,7 @@ public interface SortedSet<E> extends Set<E> {
      * by this set, so changes in the returned set are reflected in
      * this set, and vice-versa.  The returned set supports all
      * optional set operations that this set supports.
-     *
+     * 返回子set，包含起始位置但不包含结束位置。
      * <p>The returned set will throw an <tt>IllegalArgumentException</tt>
      * on an attempt to insert an element outside its range.
      *
@@ -156,7 +157,7 @@ public interface SortedSet<E> extends Set<E> {
      * backed by this set, so changes in the returned set are
      * reflected in this set, and vice-versa.  The returned set
      * supports all optional set operations that this set supports.
-     *
+     * 返回toElement元素之前的Set子集
      * <p>The returned set will throw an <tt>IllegalArgumentException</tt>
      * on an attempt to insert an element outside its range.
      *
@@ -201,6 +202,7 @@ public interface SortedSet<E> extends Set<E> {
      * @throws IllegalArgumentException if this set itself has a
      *         restricted range, and <tt>fromElement</tt> lies outside the
      *         bounds of the range
+     *         返回fromElement之后的Set子集
      */
     SortedSet<E> tailSet(E fromElement);
 
@@ -209,6 +211,7 @@ public interface SortedSet<E> extends Set<E> {
      *
      * @return the first (lowest) element currently in this set
      * @throws NoSuchElementException if this set is empty
+     * 返回第一个元素
      */
     E first();
 
@@ -217,6 +220,7 @@ public interface SortedSet<E> extends Set<E> {
      *
      * @return the last (highest) element currently in this set
      * @throws NoSuchElementException if this set is empty
+     * Set中最后一个元素
      */
     E last();
 

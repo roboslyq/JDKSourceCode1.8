@@ -43,7 +43,8 @@ package java.util.concurrent.locks;
  * use this information. However, subclasses and tools may use
  * appropriately maintained values to help control and monitor access
  * and provide diagnostics.
- *
+ * 同步器(资源)可能会被一个线程独占。此类给锁(资源)占有者(Thread)提供了创建锁和释放锁基本功能。
+ * 此类只提供接口由具体子类实现。
  * @since 1.6
  * @author Doug Lea
  */
@@ -60,6 +61,7 @@ public abstract class AbstractOwnableSynchronizer
 
     /**
      * The current owner of exclusive mode synchronization.
+     * 当前占有独占锁的线程
      */
     private transient Thread exclusiveOwnerThread;
 
@@ -69,6 +71,7 @@ public abstract class AbstractOwnableSynchronizer
      * This method does not otherwise impose any synchronization or
      * {@code volatile} field accesses.
      * @param thread the owner thread
+     * 获取资源后，将此锁设置为当前线程独占
      */
     protected final void setExclusiveOwnerThread(Thread thread) {
         exclusiveOwnerThread = thread;
@@ -79,6 +82,7 @@ public abstract class AbstractOwnableSynchronizer
      * or {@code null} if never set.  This method does not otherwise
      * impose any synchronization or {@code volatile} field accesses.
      * @return the owner thread
+     *
      */
     protected final Thread getExclusiveOwnerThread() {
         return exclusiveOwnerThread;

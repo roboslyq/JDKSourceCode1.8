@@ -82,6 +82,7 @@ package java.util;
  * @author Josh Bloch
  * @param <E> the type of elements maintained by this set
  * @since 1.6
+ * 排序工具类
  */
 public interface NavigableSet<E> extends SortedSet<E> {
     /**
@@ -95,6 +96,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *         compared with the elements currently in the set
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
+     *  返回此 set中小于给定元素的最大元素
      */
     E lower(E e);
 
@@ -109,6 +111,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *         compared with the elements currently in the set
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
+     * 返回此 set中小于或等于给定元素的最大元素
      */
     E floor(E e);
 
@@ -123,6 +126,8 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *         compared with the elements currently in the set
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
+     *         返回此 set中大于等于给定元素的最小元素。
+     *         ceiling：上限
      */
     E ceiling(E e);
 
@@ -137,6 +142,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *         compared with the elements currently in the set
      * @throws NullPointerException if the specified element is null
      *         and this set does not permit null elements
+     *     返回此 set中大于给定元素的最小元素。
      */
     E higher(E e);
 
@@ -145,6 +151,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * or returns {@code null} if this set is empty.
      *
      * @return the first element, or {@code null} if this set is empty
+     * 获取并移除第一个元素(最小值)
      */
     E pollFirst();
 
@@ -153,6 +160,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * or returns {@code null} if this set is empty.
      *
      * @return the last element, or {@code null} if this set is empty
+     * 获取并移除第最后一个元素(最大值)
      */
     E pollLast();
 
@@ -170,13 +178,14 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * modified while an iteration over either set is in progress (except
      * through the iterator's own {@code remove} operation), the results of
      * the iteration are undefined.
-     *
+     * 返回反转视图，即倒序
      * <p>The returned set has an ordering equivalent to
      * <tt>{@link Collections#reverseOrder(Comparator) Collections.reverseOrder}(comparator())</tt>.
      * The expression {@code s.descendingSet().descendingSet()} returns a
      * view of {@code s} essentially equivalent to {@code s}.
      *
      * @return a reverse order view of this set
+     * 返回此 set中所包含元素的逆序视图
      */
     NavigableSet<E> descendingSet();
 
@@ -185,6 +194,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * Equivalent in effect to {@code descendingSet().iterator()}.
      *
      * @return an iterator over the elements in this set, in descending order
+     * 降序返回在此 set的元素上进行迭代的迭代器。效果等同于 descendingSet().iterator()。
      */
     Iterator<E> descendingIterator();
 
@@ -222,6 +232,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      *         greater than {@code toElement}; or if this set itself
      *         has a restricted range, and {@code fromElement} or
      *         {@code toElement} lies outside the bounds of the range.
+     *    返回此 set 的部分视图，其元素范围从 fromElement 到 toElement
      */
     NavigableSet<E> subSet(E fromElement, boolean fromInclusive,
                            E toElement,   boolean toInclusive);
@@ -252,6 +263,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws IllegalArgumentException if this set itself has a
      *         restricted range, and {@code toElement} lies outside the
      *         bounds of the range
+     *         返回此 set的部分视图，其元素小于（或等于，如果 inclusive 为 true）toElement
      */
     NavigableSet<E> headSet(E toElement, boolean inclusive);
 
@@ -281,6 +293,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws IllegalArgumentException if this set itself has a
      *         restricted range, and {@code fromElement} lies outside the
      *         bounds of the range
+     *         返回此 set的部分视图，其元素大于（或等于，如果 inclusive 为 true）fromElement
      */
     NavigableSet<E> tailSet(E fromElement, boolean inclusive);
 
@@ -292,6 +305,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws ClassCastException       {@inheritDoc}
      * @throws NullPointerException     {@inheritDoc}
      * @throws IllegalArgumentException {@inheritDoc}
+     * 返回此 set 的部分视图，其元素从 fromElement（包括）到 toElement（不包括）
      */
     SortedSet<E> subSet(E fromElement, E toElement);
 
@@ -303,6 +317,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws ClassCastException       {@inheritDoc}
      * @throws NullPointerException     {@inheritDoc}
      * @throws IllegalArgumentException {@inheritDoc}
+     * 返回此 set的部分视图，其元素严格小于 toElement
      */
     SortedSet<E> headSet(E toElement);
 
@@ -314,6 +329,7 @@ public interface NavigableSet<E> extends SortedSet<E> {
      * @throws ClassCastException       {@inheritDoc}
      * @throws NullPointerException     {@inheritDoc}
      * @throws IllegalArgumentException {@inheritDoc}
+     * 返回此 set的部分视图，其元素严格大于 toElement
      */
     SortedSet<E> tailSet(E fromElement);
 }

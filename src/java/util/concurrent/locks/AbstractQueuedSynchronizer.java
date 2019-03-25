@@ -1,33 +1,5 @@
 /*
  * ORACLE PROPRIETARY/CONFIDENTIAL. Use is subject to license terms.
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- *
- */
-
-/*
- *
- *
- *
- *
- *
  * Written by Doug Lea with assistance from members of JCP JSR-166
  * Expert Group and released to the public domain, as explained at
  * http://creativecommons.org/publicdomain/zero/1.0/
@@ -286,8 +258,7 @@ import sun.misc.Unsafe;
  * @since 1.5
  * @author Doug Lea
  */
-public abstract class AbstractQueuedSynchronizer
-    extends AbstractOwnableSynchronizer
+public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchronizer
     implements java.io.Serializable {
 
     private static final long serialVersionUID = 7373984972572414691L;
@@ -300,6 +271,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * Wait queue node class.
+     * 等待队列实现类
      *
      * <p>The wait queue is a variant of a "CLH" (Craig, Landin, and
      * Hagersten) lock queue. CLH locks are normally used for
@@ -315,7 +287,7 @@ public abstract class AbstractQueuedSynchronizer
      * first in the queue. But being first does not guarantee success;
      * it only gives the right to contend.  So the currently released
      * contender thread may need to rewait.
-     *
+     * 此等待队列是CLH队列的一种变体。CLH通常应用于自旋锁。
      * <p>To enqueue into a CLH lock, you atomically splice it in as new
      * tail. To dequeue, you just set the head field.
      * <pre>
@@ -407,7 +379,7 @@ public abstract class AbstractQueuedSynchronizer
          *   CANCELLED:  This node is cancelled due to timeout or interrupt.
          *               Nodes never leave this state. In particular,
          *               a thread with cancelled node never again blocks.
-         *   CONDITION:  This node is currently on a condition queue.
+         *   m:  This node is currently on a condition queue.
          *               It will not be used as a sync queue node
          *               until transferred, at which time the status
          *               will be set to 0. (Use of this value here has

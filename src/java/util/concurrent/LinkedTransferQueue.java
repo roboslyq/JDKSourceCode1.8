@@ -48,8 +48,10 @@ import java.util.function.Consumer;
 
 /**
  * An unbounded {@link TransferQueue} based on linked nodes.
+ * 一个基于链的无边界的{@link TransferQueue}实现。
  * This queue orders elements FIFO (first-in-first-out) with respect
  * to any given producer.  The <em>head</em> of the queue is that
+ *  这个队列的元素是FIFO（先入先出队列，即队列头入队时间最长，队列尾入队时间最短）。
  * element that has been on the queue the longest time for some
  * producer.  The <em>tail</em> of the queue is that element that has
  * been on the queue the shortest time for some producer.
@@ -65,7 +67,7 @@ import java.util.function.Consumer;
  * to be performed atomically. For example, an iterator operating
  * concurrently with an {@code addAll} operation might view only some
  * of the added elements.
- *
+ *  注意：此队列的size()方法不是常数时间，因为异常特性
  * <p>This class and its iterator implement all of the
  * <em>optional</em> methods of the {@link Collection} and {@link
  * Iterator} interfaces.

@@ -41,6 +41,60 @@ import  java.security.ProtectionDomain;
  * to mean a sequence
  * of bytes in class file format, whether or not they reside in a file.
  *
+ * 一个代理实现ClassFileTransformer接口用于改变运行时的字节码（class File），这个改变发生在jvm加载这个类之前。
+ * 对所有的类加载器有效。
+ * class File这个术语定义于虚拟机规范3.1，指的是字节码的byte数组，而不是文件系统中的class文件。
+ *
+ * 此接口中只有一个方法：
+ * byte[] transform(  ClassLoader      loader,
+ *                 String              className,
+ *                 Class<?>            classBeingRedefined,
+ *                 ProtectionDomain    protectionDomain,
+ *                 byte[]              classfileBuffer)
+ *         throws IllegalClassFormatException;
+ * ClassFileTransformer需要添加到Instrumentation实例中才能生效。
+ * 获取Instrumentation实例的方法有2种：
+     * 虚拟机启动时，通过agent class的premain方法获得
+     * 虚拟机启动后，通过agent class的agentmain方法获得
+ * 一旦agent参数获取到一个instrumentation，agent将会在任意时候调用实例中的方法。
+ *
+ * agent应该以jar包的形式存在，也就是说agent所在的类需要单独打包一个jar包，jar包的manifest文件指定agent class。文件中包含Premain-Class属性，agent class类必须实现public static premain 方法，实际应用的main方法在这个方法之后执行。
+ * premain 方法有2种签名，虚拟机优先调用
+ *
+ * public static void premain(String agentArgs, Instrumentation inst);
+ * 1
+ * 如果没有上一种，则调用下一种
+ *
+ * public static void premain(String agentArgs);
+ * 1
+ * 通过这个 -javaagent:jarpath[=options] 参数，启动实际应用，就会自带agent。如果agent启动失败，jvm会终止。
+ *
+ * 在虚拟机启动后，启动agent需要满足以下条件
+ *
+ * agent所在 的jar包的manifest文件中必须包含Agent-Class属性，值为agent class。
+ * agent类必须有public static agentmain方法。
+ * 系统类加载器必须支持添加一个agent的jar包到系统类路径system class path
+ * 这个方法也有2种签名，优先加载第一种，第一种没有，就加载第二种。
+ *
+ * public static void agentmain(String agentArgs, Instrumentation inst);
+ *
+ * public static void agentmain(String agentArgs);
+ * 1
+ * 2
+ * 3
+ * 如果agent是在jvm启动后启动，那么premain就不会执行了。也就是说一个agent的2种方法只会启动一种。premain和agentmain是二选一的。
+ * agentmain抛出异常，不会导致jvm终止。
+ *
+ * 第二种启动方式，先用jps获取进程id，然后启动agentjar包。
+ * VirtualMachine 在jdk的lib下面的tools.jar中，如果不在classpath的话，要加进去。
+ *
+ * VirtualMachine vm = VirtualMachine.attach("3134");
+ *  try {
+ *  	vm.loadAgent("/../agent.jar");
+ *  } finally
+ *  {
+ *  	vm.detach();
+ * }
  * @see     java.lang.instrument.Instrumentation
  * @see     java.lang.instrument.Instrumentation#addTransformer
  * @see     java.lang.instrument.Instrumentation#removeTransformer

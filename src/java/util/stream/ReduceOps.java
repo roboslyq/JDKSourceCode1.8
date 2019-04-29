@@ -705,6 +705,7 @@ final class ReduceOps {
         @Override
         public <P_IN> R evaluateSequential(PipelineHelper<T> helper,
                                            Spliterator<P_IN> spliterator) {
+            //在ReduceOps.makeRef完成makeSink()方法实现 ，返回 return new ReducingSink();，
             return helper.wrapAndCopyInto(makeSink(), spliterator).get();
         }
 

@@ -186,6 +186,9 @@ abstract class ReferencePipeline<P_IN, P_OUT>
         return new StatelessOp<P_OUT, R>(this, StreamShape.REFERENCE,
                                      StreamOpFlag.NOT_SORTED | StreamOpFlag.NOT_DISTINCT) {
             @Override
+            //此方法由Terminal操作调起。因为链式调用不断产生新的流，所以最后一个非Terminal调用为最新sink，此Sink拥有previous operator引用。
+            //所以此sink相当于downStream。
+            //flags对map操作无用
             Sink<P_OUT> opWrapSink(int flags, Sink<R> sink) {
                 return new Sink.ChainedReference<P_OUT, R>(sink) {
                     @Override

@@ -83,6 +83,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
 
     /**
      * The "upstream" pipeline, or null if this is the source stage.
+     * 获取前一个Stage
      */
     @SuppressWarnings("rawtypes")
     private final AbstractPipeline previousStage;
@@ -96,6 +97,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
     /**
      * The next stage in the pipeline, or null if this is the last stage.
      * Effectively final at the point of linking to the next pipeline.
+     * 获取下一个Stage
      */
     @SuppressWarnings("rawtypes")
     private AbstractPipeline nextStage;
@@ -104,6 +106,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
      * The number of intermediate operations between this pipeline object
      * and the stream source if sequential, or the previous stateful if parallel.
      * Valid at the point of pipeline preparation for evaluation.
+     * 记录了Stage的深度
      */
     private int depth;
 
@@ -468,6 +471,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
 
     @Override
     final <P_IN, S extends Sink<E_OUT>> S wrapAndCopyInto(S sink, Spliterator<P_IN> spliterator) {
+        //wrapSink的实现由操作(比如map(),filter(),peek()等)中合作lambda表达式实现。
         copyInto(wrapSink(Objects.requireNonNull(sink)), spliterator);
         return sink;
     }
@@ -510,10 +514,15 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
 
     @Override
     @SuppressWarnings("unchecked")
+    /**
+     * 将已经拥有previous stage的单向sink链构造成拥有next stage的新链。
+     * 只有通用接口Sink,不同stage之间才知道需要调用的操作。
+     */
     final <P_IN> Sink<P_IN> wrapSink(Sink<E_OUT> sink) {
         Objects.requireNonNull(sink);
-
+        //
         for ( @SuppressWarnings("rawtypes") AbstractPipeline p=AbstractPipeline.this; p.depth > 0; p=p.previousStage) {
+            //p为previousStage,那么传入参数sink为当前
             sink = p.opWrapSink(p.previousStage.combinedFlags, sink);
         }
         return (Sink<P_IN>) sink;

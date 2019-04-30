@@ -54,6 +54,7 @@ import sun.util.calendar.ZoneInfo;
  * parse date strings.
  * The corresponding methods in <code>Date</code> are deprecated.
  * <p>
+ *
  * Although the <code>Date</code> class is intended to reflect
  * coordinated universal time (UTC), it may not do so exactly,
  * depending on the host environment of the Java Virtual Machine.
@@ -119,7 +120,14 @@ import sun.util.calendar.ZoneInfo;
  * In all cases, arguments given to methods for these purposes need
  * not fall within the indicated ranges; for example, a date may be
  * specified as January 32 and is interpreted as meaning February 1.
- *
+ * 1、Date精度只到毫秒
+ * 2、Date不支持国际化
+ * 3、在JDK1.1后提供Calendar类来实现date和time操作。并且提供DateFormat类够格式化日期。
+ * 4、DateFormat是抽象类，SimpleDateFormat继承此类。
+ * 5、Date本意是想实现coordinated universal time (UTC)，世界协调时间，但实际上Date依赖于JVM时间，故不会太精确。
+ * 6、UTC每1到2年，会存在一个"leap second."（闰秒），很多电脑时钟不支持此问题处理
+ * 7、Greenwich，格林威治，本初子午线所在城市
+ * 8、UTC基于原子时间(晶振)，很准确。UT依赖于天文(地球转动等，时间是不均匀的变化)，为了协调UT和UTC，因此存在闰秒操作。
  * @author  James Gosling
  * @author  Arthur van Hoff
  * @author  Alan Liu

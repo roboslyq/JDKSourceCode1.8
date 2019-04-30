@@ -144,6 +144,28 @@ import java.util.function.UnaryOperator;
  * {@link #sequential()} or {@link #parallel()} methods, and may be queried with
  * the {@link #isParallel()} method.
  *
+ *
+ * 1、“操作(operation)”是指“Stream中间操作”的操作，很多Stream操作会需要一个回调函数（Lambda表达式），
+ *      因此一个完整的操作是<数据来源，操作，回调函数>构成的三元组。Stream中使用Stage的概念来描述一个完整的操作，
+ *      并用某种实例化后的PipelineHelper来代表Stage，将具有先后顺序的各个Stage连到一起，就构成了整个流水线。
+ * 2、常见的Stage分类共有种：IntPipeline, LongPipeline, DoublePipeline和ReferencePipeline。其中前3种是专门为基本类型int,long,double准备的
+ * 3、现以ReferencePipeline为例，主要有三种实现：
+ *          Head：用于表示第一个Stage，即调用调用诸如Collection.stream()方法产生的Stage，很显然这个Stage里不包含任何操作；
+ *          StatelessOp：无状态的Stage，对应于无状态的中间操作。
+ *          StatefulOp：有状态的Stage，对应于有状态的中间操作。
+ * 4、不同Stage之间可能做的操作完成不一样，因此需要一种协议来协调不同Stage之前的调用关系。协议由Sink接口完成，Sink接口包含的方法如下表所示：
+ *      有了Sink协议，每个Stage都会将自己的操作封装到一个Sink里，相邻Stage之间调用很方便，前一个Stage只需调用后一个Stage的accept()方法即可，
+ *      并不需要知道其内部是如何处理的。
+ *      Sink接口4个方法：
+ *      以Stream.sorted()为例，以操作是一个有状态的中间操作，其对应的
+ *          Sink.begin()：方法可能创建一个乘放结果的容器，
+ *          Sink.accept()：方法负责将元素添加到该容器，
+ *          Sink.end()：负责对容器进行排序。
+ *          Sink.cancellationRequested()：此接口对于短路操作是必须实现的，比如Stream.findFirst()是短路操作，只要找到一个
+ *                                  元素，cancellationRequested()就应该返回true，以便调用者尽快结束查找。Sink的四个接口方法常常相互协作，共同完成计算任务。
+ *      实际上Stream API内部实现的的本质，就是如何重载Sink的这四个接口方法。有了Sink对操作的包装，Stage之间的调用问题就解决了，执行时只需要从流水线的head开始
+ *      对数据源依次调用每个Stage对应的Sink.{begin(), accept(), cancellationRequested(), end()}方法就可以了
+ *
  * @param <T> the type of the stream elements
  * @since 1.8
  * @see IntStream

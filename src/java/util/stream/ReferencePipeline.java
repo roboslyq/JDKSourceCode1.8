@@ -181,19 +181,28 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
     @Override
     @SuppressWarnings("unchecked")
+    /**
+     * 调用该方法将产生一个新的Stream。
+     * 由于Stream.map()是一个无状态的中间操作，所以map()方法返回了一个StatelessOp内部类对象（一个新的Stream），
+     * 调用这个新Stream的opWripSink()方法将得到一个包装了当前回调函数的Sink。
+     */
     public final <R> Stream<R> map(Function<? super P_OUT, ? extends R> mapper) {
         Objects.requireNonNull(mapper);
         return new StatelessOp<P_OUT, R>(this, StreamShape.REFERENCE,
                                      StreamOpFlag.NOT_SORTED | StreamOpFlag.NOT_DISTINCT) {
             @Override
-            //此方法由Terminal操作调起。因为链式调用不断产生新的流，所以最后一个非Terminal调用为最新sink，此Sink拥有previous operator引用。
-            //所以此sink相当于downStream。
-            //flags对map操作无用
+            //此方法由Terminal操作调起。因为链式调用不断产生新的流，所以最后一个非Terminal调用为最新sink
+            // Sink拥有previous operator引用。所以此sink相当于downStream。
+            //opWripSink()方法返回由回调函数包装而成Sink。简单理解就是将回调函数mapper(lambda表达式)包装到一个Sink当中。
             Sink<P_OUT> opWrapSink(int flags, Sink<R> sink) {
                 return new Sink.ChainedReference<P_OUT, R>(sink) {
                     @Override
                     public void accept(P_OUT u) {
-                        downstream.accept(mapper.apply(u));
+                        // 1. 使用当前Sink包装的回调函数mapper处理u
+                        downstream.accept(
+                                // 2. 将处理结果传递给流水线下游的Sink
+                                mapper.apply(u)
+                        );
                     }
                 };
             }
@@ -381,13 +390,14 @@ abstract class ReferencePipeline<P_IN, P_OUT>
     }
 
     // Stateful intermediate operations from Stream
-
+    // 有状态的 中间操作
     @Override
     public final Stream<P_OUT> distinct() {
         return DistinctOps.makeRef(this);
     }
 
     @Override
+    //排序
     public final Stream<P_OUT> sorted() {
         return SortedOps.makeRef(this);
     }
@@ -489,6 +499,11 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
     @Override
     @SuppressWarnings("unchecked")
+    /**
+     * 终止操作符之一，入参为Collector的实现类。
+     *
+     *
+     */
     public final <R, A> R collect(Collector<? super P_OUT, A, R> collector) {
         A container;
         if (isParallel()

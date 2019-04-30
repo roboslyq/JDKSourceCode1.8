@@ -33,7 +33,7 @@ import java.util.function.LongConsumer;
  * An object for traversing and partitioning elements of a source.  The source
  * of elements covered by a Spliterator could be, for example, an array, a
  * {@link Collection}, an IO channel, or a generator function.
- *
+ * 遍列和分段(切割)数据源(Source)元素的一个对象。
  * <p>A Spliterator may traverse elements individually ({@link
  * #tryAdvance tryAdvance()}) or sequentially in bulk
  * ({@link #forEachRemaining forEachRemaining()}).

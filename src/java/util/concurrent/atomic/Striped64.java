@@ -120,6 +120,7 @@ abstract class Striped64 extends Number {
     @sun.misc.Contended static final class Cell {
         volatile long value;
         Cell(long x) { value = x; }
+        // 进行基本的CAS操作
         final boolean cas(long cmp, long val) {
             return UNSAFE.compareAndSwapLong(this, valueOffset, cmp, val);
         }
@@ -155,6 +156,7 @@ abstract class Striped64 extends Number {
 
     /**
      * Spinlock (locked via CAS) used when resizing and/or creating Cells.
+     * cellsBusy cells 的操作标记位，如果正在修改、新建、操作 cells 数组中的元素会,会将其 cas 为 1，否则为0。
      */
     transient volatile int cellsBusy;
 
@@ -166,6 +168,7 @@ abstract class Striped64 extends Number {
 
     /**
      * CASes the base field.
+     * 使用UNSAFE完成基本的CAS操作
      */
     final boolean casBase(long cmp, long val) {
         return UNSAFE.compareAndSwapLong(this, BASE, cmp, val);
@@ -181,6 +184,7 @@ abstract class Striped64 extends Number {
     /**
      * Returns the probe value for the current thread.
      * Duplicated from ThreadLocalRandom because of packaging restrictions.
+     * 根据当前线程 hash 出一个 int 值。
      */
     static final int getProbe() {
         return UNSAFE.getInt(Thread.currentThread(), PROBE);
@@ -210,6 +214,7 @@ abstract class Striped64 extends Number {
      * @param fn the update function, or null for add (this convention
      * avoids the need for an extra field or function in LongAdder).
      * @param wasUncontended false if CAS failed before call
+     *                       表示 cas 是否失败，如果失败则考虑操作升级。
      */
     final void longAccumulate(long x, LongBinaryOperator fn,
                               boolean wasUncontended) {
@@ -219,9 +224,27 @@ abstract class Striped64 extends Number {
             h = getProbe();
             wasUncontended = true;
         }
+        // 是否冲突，如果冲突，则考虑扩容 cells 的长度。
         boolean collide = false;                // True if last slot nonempty
+        /*
+         * 1、整个 for(;;) 死循环，都是以 cas 操作成功而结束。否则则会修改cellsBusy ，wasUncontended 及collide 相关标记位，重新进入循环。
+         * 2、以下循环原则
+         *     为并发环境下要考虑各种操作的原子性，所以对于锁都进行了 double check。
+         *     操作都是逐步升级，以最小的代价实现功能。
+         * 3、所以整个循环包括如下几种情况：
+            (1)cells 不为空
+                (a)如果 cell[i] 某个下标为空，则 new 一个 cell，并初始化值，然后退出
+                (b)如果 cas 失败，继续循环
+                (c)如果 cell 不为空，且 cell cas 成功，退出
+                (d)如果 cell 的数量，大于等于 cpu 数量或者已经扩容了，继续重试。（扩容没意义）
+                (e)设置 collide 为 true。
+                (f)获取 cellsBusy 成功就对 cell 进行扩容，获取 cellBusy 失败则重新 hash 再重试。
+            (2)cells 为空且获取到 cellsBusy ，init cells 数组，然后赋值退出。
+            (3)cellsBusy 获取失败，则进行 baseCas ，操作成功退出，不成功则重试。
+         */
         for (;;) {
             Cell[] as; Cell a; int n; long v;
+            //如果操作的cell 为空，double check 新建 cell
             if ((as = cells) != null && (n = as.length) > 0) {
                 if ((a = as[(n - 1) & h]) == null) {
                     if (cellsBusy == 0) {       // Try to attach new Cell
@@ -246,15 +269,19 @@ abstract class Striped64 extends Number {
                     }
                     collide = false;
                 }
+                // cas 失败 继续循环
                 else if (!wasUncontended)       // CAS already known to fail
                     wasUncontended = true;      // Continue after rehash
+                // 如果 cell cas 成功 break
                 else if (a.cas(v = a.value, ((fn == null) ? v + x :
                                              fn.applyAsLong(v, x))))
                     break;
+                // 如果 cell 的长度已经大于等于 cpu 的数量，扩容意义不大，就不用标记冲突，重试
                 else if (n >= NCPU || cells != as)
                     collide = false;            // At max size or stale
                 else if (!collide)
                     collide = true;
+                // 获取锁，上锁扩容，将冲突标记为否，继续执行
                 else if (cellsBusy == 0 && casCellsBusy()) {
                     try {
                         if (cells == as) {      // Expand table unless stale
@@ -269,8 +296,10 @@ abstract class Striped64 extends Number {
                     collide = false;
                     continue;                   // Retry with expanded table
                 }
+                // 没法获取锁，重散列，尝试其他槽
                 h = advanceProbe(h);
             }
+            // 获取锁，初始化 cell 数组
             else if (cellsBusy == 0 && cells == as && casCellsBusy()) {
                 boolean init = false;
                 try {                           // Initialize table
@@ -286,6 +315,7 @@ abstract class Striped64 extends Number {
                 if (init)
                     break;
             }
+            // 表未被初始化，可能正在初始化，回退使用 base。
             else if (casBase(v = base, ((fn == null) ? v + x :
                                         fn.applyAsLong(v, x))))
                 break;                          // Fall back on using base

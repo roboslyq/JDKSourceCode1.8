@@ -48,6 +48,11 @@ import sun.misc.Unsafe;
  * {@code Number} to allow uniform access by tools and utilities that
  * deal with numerically-based classes.
  *
+ * 1、Long的atomic版本，即原子版本（因为Long为64位，普通指令操作是非原子性的）。
+ * 2、底层使用sun.misc.Unsafe CAS实现原子操作。
+ * 3、如果在竞争激烈的情况下，CAS 操作不断的失败，就会有大量的线程不断的自旋尝试 CAS 会造成 CPU 的极大的消耗。
+ * 4、可以使用LongAdder替代AutomicLong，性能更好
+ *
  * @since 1.5
  * @author Doug Lea
  */

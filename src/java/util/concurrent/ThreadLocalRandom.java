@@ -205,11 +205,17 @@ public class ThreadLocalRandom extends Random {
      * rely on (static) atomic generators to initialize the values.
      */
     static final void localInit() {
+        //private static final int PROBE_INCREMENT = 0x9e3779b9;
         int p = probeGenerator.addAndGet(PROBE_INCREMENT);
+        //prob不能为0
         int probe = (p == 0) ? 1 : p; // skip 0
         long seed = mix64(seeder.getAndAdd(SEEDER_INCREMENT));
+        //获取当前线程
         Thread t = Thread.currentThread();
+        //将seed值更新为mix64(seeder.getAndAdd(SEEDER_INCREMENT))处理之后的值。
         UNSAFE.putLong(t, SEED, seed);
+
+        //将probe的值更新为probeGenerator的值
         UNSAFE.putInt(t, PROBE, probe);
     }
 

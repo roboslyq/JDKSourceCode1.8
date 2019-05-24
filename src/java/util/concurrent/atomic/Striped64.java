@@ -231,6 +231,7 @@ abstract class Striped64 extends Number {
      * Pseudo-randomly advances and records the given probe value for the
      * given thread.
      * Duplicated from ThreadLocalRandom because of packaging restrictions.
+     * prob的值左右移位 、异或操作三次
      */
     static final int advanceProbe(int probe) {
         probe ^= probe << 13;   // xorshift
@@ -277,7 +278,9 @@ abstract class Striped64 extends Number {
             //初始化ThreadLocalRandom;初始化后：0x9e3779b9
             ThreadLocalRandom.current(); // force initialization
 
-            //将h设置为PROBE，经过初始化后值为0x9e3779b9
+            //将h设置为PROBE，第一次经过ThreadLocalRandom.localInit()初始后值为0x9e3779b9，后续每一次值在些基础上加0x9e3779b9
+            //0x9e3779b9这个数字的得来是 2^32 除以一个常数，这个常数就是传说中的黄金比例 1.6180339887；
+            //然后将当前线程的threadLocalRandomProbe设置为probeGenerator 的值，如果probeGenerator 为0，这取1；
             h = getProbe();
 
             //设置未竞争标记为true

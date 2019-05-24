@@ -327,6 +327,7 @@ abstract class Striped64 extends Number {
                  *      对cells数组使用cellsBusy加锁，然后将这个Cell对象放到cells[m%cells.length]位置上
                  */
                 // 当前线程在cells中对应的Cell为null,表示需要创建新Cell，然后赋值到cells中对应的位置。若创建成功，则表示完成操作，返回break返回。
+                //as[(n - 1) & h]操作相当于对h取模，只不过比起取摸，因为是 与 的运算所以效率更高。
                 if ((a = as[(n - 1) & h]) == null) {
                     //cellsBusy == 0 代表当前没有线程cells数组做修改，相当于锁的效果(锁整个cells)
                     if (cellsBusy == 0) {       // Try to attach new Cell

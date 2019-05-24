@@ -87,6 +87,9 @@ import java.io.Serializable;
      *         longAdder.add(6);
  *         System.out.println(longAdder.longValue());
  *   最后打印结果为： 16
+ *
+ * 3、AtomicLong生成自增ID。 incrementAndGet，增加以后并获取当前值。 而LongAdder是无法提供当前值的，它只能提供一个最终值。
+ *      所以LongAdder并不能完全替代AutomicLong，在自增场景还是AutomicLong较好。
  * @since 1.8
  * @author Doug Lea
  */
@@ -133,6 +136,10 @@ public class LongAdder extends Striped64 implements Serializable {
          * 1. cells数组不为null（不存在争用的时候，cells数组一定为null，一旦对base的cas操作失败，才会初始化cells数组）
          * 2. 如果cells数组为null，如果casBase执行成功(表示取得锁，更新成功)，则直接返回，
          *    如果casBase方法执行失败（casBase失败，说明第一次争用冲突产生，需要对cells数组初始化）进入if内；
+         *
+         * 此处条件判断很精髓：(as = cells) != null 和 !casBase(b = base, b + x) 尽量不要交换位置。
+         * 因为如果将casBase放在(as = cells)前面，那么每次都要CAS一下，在高并发时，失败几率非常高，并且是恶性循环，
+         * 比起一次判断，后者的开销明显小很多，还没有副作用。因此，不调换可能会更好
          */
         if (    (as = cells) != null
                 || !casBase(b = base, b + x)
@@ -199,6 +206,8 @@ public class LongAdder extends Striped64 implements Serializable {
      * updates returns an accurate result, but concurrent updates that
      * occur while the sum is being calculated might not be
      * incorporated.
+     * 返回当前和。返回的值不是原子快照;
+     * 在没有并发更新的情况下调用将返回准确的结果，但是在计算和时发生的并发更新可能不会被合并。
      *
      * @return the sum
      */

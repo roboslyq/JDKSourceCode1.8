@@ -74,7 +74,7 @@ import sun.security.util.SecurityConstants;
  * declare a class to be a subclass of <code>Thread</code>. This
  * subclass should override the <code>run</code> method of class
  * <code>Thread</code>. An instance of the subclass can then be
- * allocated and started. For example, a thread that computes primes
+ * allocated and started. For example, a thread that computes primes（素数）
  * larger than a stated value could be written as follows:
  * <hr><blockquote><pre>
  *     class PrimeThread extends Thread {
@@ -136,6 +136,17 @@ import sun.security.util.SecurityConstants;
  * @see     #run()
  * @see     #stop()
  * @since   JDK1.0
+ * 1、Java中的Thread是操作系统的线程抽象，操作系统调度系统可以对其进行任务调度切换。
+ * 2、在Thread中，在类属性Runnable，是用户自定义的具体任务。即Runnable任务在Thread中完成。
+ * 3、此处可以理解为代理模式的实现 。因为Thread 本身实现现Runnable接口，JVM会回调Thread的Run()方法。
+ *    Thread.run()方法如下：
+ *              @Override
+ *              public void run() {
+ *                  if (target != null) {
+ *                      target.run();
+ *                  }
+ *               }
+ *    可以看出没有任何逻辑实现，只是调用target(构造函数传入的Runnable实例)run方法。
  */
 public
 class Thread implements Runnable {
@@ -145,8 +156,17 @@ class Thread implements Runnable {
         registerNatives();
     }
 
+    /**
+     * 线程名称
+     */
     private volatile String name;
+    /**
+     * 线程优先级
+     */
     private int            priority;
+    /**
+     * 线程XXX
+     */
     private Thread         threadQ;
     private long           eetop;
 
@@ -154,24 +174,44 @@ class Thread implements Runnable {
     private boolean     single_step;
 
     /* Whether or not the thread is a daemon thread. */
+    /**
+     * 是否守护线程
+     */
     private boolean     daemon = false;
 
     /* JVM state */
     private boolean     stillborn = false;
 
     /* What will be run. */
+    /**
+     * 当前线程将要做什么事情。
+     */
     private Runnable target;
 
     /* The group of this thread */
+    /**
+     * 当前线程所属线程组 。
+     * 线程组表示一个线程的集合。此外，线程组也可以包含其他线程组。
+     * 线程组构成一棵树，在树中，除了初始线程组外，每个线程组都有一个父线程组。
+     */
     private ThreadGroup group;
 
     /* The context ClassLoader for this thread */
+    /**
+     * 当前线程类加载器
+     */
     private ClassLoader contextClassLoader;
 
     /* The inherited AccessControlContext of this thread */
+    /**
+     * 一个调用堆栈内的安全权限控制。在java.security.*包中
+     */
     private AccessControlContext inheritedAccessControlContext;
 
     /* For autonumbering anonymous threads. */
+    /**
+     * 类属性，所以Thread 实例共享：第几个线程，在init初始化线程的时候用来赋给thread.name
+     */
     private static int threadInitNumber;
     private static synchronized int nextThreadNum() {
         return threadInitNumber++;
@@ -179,6 +219,9 @@ class Thread implements Runnable {
 
     /* ThreadLocal values pertaining to this thread. This map is maintained
      * by the ThreadLocal class. */
+    /**
+     * ThreadLocalMap ：对并发资源共享的一种解决方案,即对共享变量线程私有化。
+     */
     ThreadLocal.ThreadLocalMap threadLocals = null;
 
     /*
@@ -201,14 +244,27 @@ class Thread implements Runnable {
 
     /*
      * Thread ID
+     * 线程ID
      */
     private long tid;
 
     /* For generating thread ID */
+    /**
+     * 类属性变量：默认的是下一线程ID
+     */
     private static long threadSeqNumber;
 
-    /* Java thread status for tools,
+    /** Java thread status for tools,
      * initialized to indicate thread 'not yet started'
+     * 线程从创建到最终的消亡，要经历若干个状态。
+     * 一般来说，线程包括以下这几个状态：
+     *  创建(new)
+     *  就绪(runnable)
+     *  运行(running)
+     *  阻塞(blocked)
+     *  time waiting
+     *  waiting
+     *  消亡（dead）。
      */
 
     private volatile int threadStatus = 0;
@@ -240,7 +296,9 @@ class Thread implements Runnable {
             blocker = b;
         }
     }
-
+    //java中的线程总共分了10个优先级
+    //最小优先级为1，最大为10，默认为5。线程优先级控制不是很精确，所以建议不要依赖于线程的优先级来对业务做控制。
+    //即不建议对线程的优先级做修改。
     /**
      * The minimum priority that a thread can have.
      */
@@ -260,6 +318,7 @@ class Thread implements Runnable {
      * Returns a reference to the currently executing thread object.
      *
      * @return  the currently executing thread.
+     * 类方法，返回当前线程自身引用。
      */
     public static native Thread currentThread();
 
@@ -278,6 +337,7 @@ class Thread implements Runnable {
      * bugs due to race conditions. It may also be useful when designing
      * concurrency control constructs such as the ones in the
      * {@link java.util.concurrent.locks} package.
+     * 睡眼
      */
     public static native void yield();
 
@@ -913,7 +973,7 @@ class Thread implements Runnable {
             checkAccess();
 
         synchronized (blockerLock) {
-            Interruptible b = blocker;
+            Interrupti ble b = blocker;
             if (b != null) {
                 interrupt0();           // Just to set the interrupt flag
                 b.interrupt(this);
@@ -1703,6 +1763,7 @@ class Thread implements Runnable {
     }
 
     /**
+     * 线程的内部状态：
      * A thread state.  A thread can be in one of the following states:
      * <ul>
      * <li>{@link #NEW}<br>

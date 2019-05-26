@@ -155,15 +155,26 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return false;
         }
 
+        /**
+         * 尝试释放锁
+         * @param releases = 1
+         * @return
+         */
         protected final boolean tryRelease(int releases) {
+            //因为是可重入锁，所以重入多次也需要释放多次
             int c = getState() - releases;
+            //如果当前线程不为资源拥有者，则抛出异常
             if (Thread.currentThread() != getExclusiveOwnerThread())
                 throw new IllegalMonitorStateException();
+            //是否完全释放
             boolean free = false;
+            //c == 0表示完成释放
             if (c == 0) {
                 free = true;
+                //将owner线程置为空
                 setExclusiveOwnerThread(null);
             }
+            //否则表示曾经重入过多次，需要释放多次。
             setState(c);
             return free;
         }
@@ -211,7 +222,8 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs lock.  Try immediate barge, backing up to normal
          * acquire on failure.
-         * 非公平锁获取方法
+         * 非公平锁获取方法，没有返回值，lock失败时会阻塞，然后等待被唤醒。
+         * 整个过程不断自旋，直到获得资源然后返回。
          */
         final void lock() {
             //尝试获取锁(父类AQS实现)，如果获取成功。此处是非公平与公平锁之前的差异，公平锁直接进入else条件方法。
@@ -464,7 +476,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 
     /**
      * Attempts to release this lock.
-     *
+     * 尝试释放锁
      * <p>If the current thread is the holder of this lock then the hold
      * count is decremented.  If the hold count is now zero then the lock
      * is released.  If the current thread is not the holder of this
@@ -472,8 +484,10 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *
      * @throws IllegalMonitorStateException if the current thread does not
      *         hold this lock
+     *
      */
     public void unlock() {
+        //释放锁
         sync.release(1);
     }
 

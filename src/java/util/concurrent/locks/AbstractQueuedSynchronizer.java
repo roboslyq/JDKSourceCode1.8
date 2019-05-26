@@ -627,6 +627,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      * Wakes up node's successor, if one exists.
      *
      * @param node the node
+     *  解除node.next的的阻塞。
      */
     private void unparkSuccessor(Node node) {
         /*
@@ -784,6 +785,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      * @param pred node's predecessor holding status
      * @param node the node
      * @return {@code true} if thread should block
+     * 此过程完阻塞时具体节点位置获取
      * 如果线程A获取锁失败，判断是否需要阻塞线程A。
      * CLH队列使用前置节点驱动，根据前置节点SIGNAL，来判断是否需要阻塞当前线程。
      *
@@ -801,7 +803,8 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
             /*
              * Predecessor was cancelled. Skip over predecessors and
              * indicate retry.
-             * 如果前置节点已经被取消，将其移除并跳过当前前驱节点，并且指示重试前驱节点
+             * 如果前驱节点已经被取消，则while递归一直往前找，找到一个合适的前驱节点，并把其next节点设置为自己。
+             * 那么被跳过的前驱节点将没有引用可以到达，因为会被GC回收掉。
              */
             do {
                 node.prev = pred = pred.prev;
@@ -812,7 +815,8 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
              * waitStatus must be 0 or PROPAGATE.  Indicate that we
              * need a signal, but don't park yet.  Caller will need to
              * retry to make sure it cannot acquire before parking.
-             * 对于独占功能来说，这里的节点初始状态为0
+             * 如果前驱节点正常，那么则将前驱的状态设置为SIGNAL（即通知当前节点）
+             * 此处可以能会失败（前驱节点已经释放资源）
              */
             compareAndSetWaitStatus(pred, ws, Node.SIGNAL);
         }
@@ -830,10 +834,14 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      * Convenience method to park and then check if interrupted
      *
      * @return {@code true} if interrupted
+     * 此过程完成线程具体的阻塞动作。
+     * 唤醒途径有两种：
+     * （1）unpark()
+     * (2)interrupt()
      */
     private final boolean parkAndCheckInterrupt() {
-        LockSupport.park(this);
-        return Thread.interrupted();
+        LockSupport.park(this);//调用park()，使当前线程进入waiting状态，如果没有被中断程序一直停在这。
+        return Thread.interrupted();//如果被唤醒，查看是不是被中断的
     }
 
     /*
@@ -853,12 +861,21 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      * @param arg the acquire argument  此值为1
      *
      * @return {@code true} if interrupted while waiting
-     *
-     * 在AQS中，等待队列中的线程都是阻塞的，当某个线程被唤醒时，只有该线程是首结点（线程）时，才有权去尝试获取锁。
-     * 从等待队列中，选取队首线程并尝试获取锁。如果获取不到，就确保在前驱能唤醒自己的前提下（将前驱状态设置为SIGNAL）进入阻塞状态。
-     * 注意，正常情况下该方法一定会阻塞当前线程，除非获取到了锁才返回。但如果是执行过程中抛出异常(tryAcquire方法)，那么会将当前节点
+     * 知识点：
+     * 1、在AQS中，等待队列中的线程都是阻塞的，当某个线程被唤醒时，只有该线程是首结点（线程）时，才有权去尝试获取锁。
+     * 2、从等待队列中，选取队首线程并尝试获取锁。如果获取不到，就确保在前驱能唤醒自己的前提下（将前驱状态设置为SIGNAL）进入阻塞状态。
+     * 3、注意，正常情况下该方法一定会阻塞当前线程，除非获取到了锁才返回。但如果是执行过程中抛出异常(tryAcquire方法)，那么会将当前节点
      * 移除并且继承上抛异常。
-     * 返回值：如果当前线程阻塞过程中被中断则返回true
+     * 4、返回值：如果当前线程阻塞过程中被中断则返回true
+     * 5、整个方法具体过程：
+     *      （1）p == head && tryAcquire(arg)：
+     *              尝试获取资源锁，如果成功则直接返回
+     *      （2）shouldParkAfterFailedAcquire(p, node) ：
+     *              如果尝试失败，当前节点进入队尾，检查状态，找到安全休息（阻塞）点
+     *      （3）parkAndCheckInterrupt() ：
+     *              调用park()方法进入waiting状态，等待unparking或者inerrupt唤醒。
+     *              此时线程一直在此等待，直到被唤醒
+     *      (4) 被唤醒后，interrupted = true。重新进入for自旋状态，重新开始步骤(1),直到成功获取锁。
      */
     final boolean acquireQueued(final Node node, int arg) {
         boolean failed = true;
@@ -866,15 +883,22 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
             boolean interrupted = false;
             for (;;) { //自旋重入
                 final Node p = node.predecessor(); //获取前置Node
-                //如果前置Node为head(head为一个初始化节点，不包含具体的Thread)，则表时当前Node为队列中第最前一个Node，则可以尝试获取锁。
+                //条件分支一：如果前置Node为head(head节点即第2个节点。第一个节点是在初始化初始化的一个dummy（虚拟的）节点，不包含具体的Thread)，
+                // 若p == head ,则表时当前Node为队列中第3个Node，则可以尝试获取锁(因为第2个head节点可以已经释放资源)。
                 if (p == head && tryAcquire(arg)) {
-                    //获取锁成功
+                    //获取锁成功.证明之前的head节点已经释放锁，所以重新设置head为当前线程（已经获取锁的当前线程）
+                    //所以head节点指当前获取到资源的节点
                     setHead(node);
+                    //即然head节点已经释放资源，那么将head.next引用断段，方便Head回收。即已经释放锁(拿到资源并且完成相应操作释放了资源)
+                    //的head出队
                     p.next = null; // help GC
+                    //获取资源成功
                     failed = false;
+                    //返回是否被中断:否
                     return interrupted;
                 }
-                //如果上没有成功，则处理是否需要阻塞当前线程，如果shouldParkAfterFailedAcquire()返回true，则进行阻塞操作parkAndCheckInterrupt
+                //条件分支二： 证明当前节点未能成功获取资源，则处理是否需要阻塞当前线程，如果shouldParkAfterFailedAcquire()返回true，
+                // 则进行阻塞操作parkAndCheckInterrupt
                 if (shouldParkAfterFailedAcquire(p, node) &&//获取锁失败之后是否需要阻塞
                     parkAndCheckInterrupt())//阻塞和检查中断，当中断时返回true。
                     //如果Thread在阻塞过程中被中断，其实是不会抛出异常的，只会在acquireQueued方法返回时，
@@ -1109,6 +1133,7 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      *         thrown in a consistent fashion for synchronization to work
      *         correctly.
      * @throws UnsupportedOperationException if exclusive mode is not supported
+     *
      */
     protected boolean tryRelease(int arg) {
         throw new UnsupportedOperationException();
@@ -1201,7 +1226,14 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      * repeatedly blocking and unblocking, invoking {@link
      * #tryAcquire} until success.  This method can be used
      * to implement method {@link Lock#lock}.
-     * 先尝试获取锁，如果获取成功则直接返回，如果获取失败，则进行入队操作。
+     * acquire流程：
+     * 1、调用自定义同步器tryAcquire(arg) 先尝试获取锁，如果获取成功则直接返回
+     * 2、如果获取失败，则调用addWaiter(Node.EXCLUSIVE)进行入队操作，将节点添加到队列尾部，并标记为exclusive模式。
+     * 3、加入队列尾部之后，再调用acquireQueued方法，使节点进入阻塞状态。当有机会（被unpark或interrupt唤醒）获取资源时，会去尝试获取资源（在acquireQueued方法内）。
+     *    获取资源后才返回，否则没有特殊情况会一直在acquireQueued中自旋。
+     *    在整个过程中，如果曾经被interrupt过，那么返回true,否则返回false。
+     * 4、如果线程在等待过程中被中断过，它是不响应的，只是在获取资源后进行自我中断selfInterrupt(),将中断补上
+     *
      *
      * @param arg the acquire argument.  This value is conveyed to
      *        {@link #tryAcquire} but is otherwise uninterpreted and
@@ -1275,10 +1307,14 @@ public abstract class AbstractQueuedSynchronizer extends AbstractOwnableSynchron
      *        {@link #tryRelease} but is otherwise uninterpreted and
      *        can represent anything you like.
      * @return the value returned from {@link #tryRelease}
+     * 释放锁
      */
     public final boolean release(int arg) {
+        //如果为true，则表示资源已经free,当前线程已经完全释放资源（包括多次重入）
         if (tryRelease(arg)) {
             Node h = head;
+            //获取当前节点（CLH队列特性，只有head节点能获取相应资源）
+            //如果next节点设置了唤醒信号，则唤醒next节点。
             if (h != null && h.waitStatus != 0)
                 unparkSuccessor(h);
             return true;

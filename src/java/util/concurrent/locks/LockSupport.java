@@ -122,6 +122,7 @@ public class LockSupport {
 
     private static void setBlocker(Thread t, Object arg) {
         // Even though volatile, hotspot doesn't need a write barrier here.
+        //记录当前阻塞的线程
         UNSAFE.putObject(t, parkBlockerOffset, arg);
     }
 
@@ -168,10 +169,15 @@ public class LockSupport {
      * @param blocker the synchronization object responsible for this
      *        thread parking
      * @since 1.6
+     * 1、为了线程调度，在许可可用之前禁用当前线程。
+     * 2、许可默认是被占用的，一直在这里等待.
+     * 3、park是等待一个许可。unpark是为某线程提供一个许可。如果某线程A调用park，那么除非另外一个线程调用unpark(A)给A一个许可
+     * ，否则线程A将阻塞在park操作上。
      */
     public static void park(Object blocker) {
-        Thread t = Thread.currentThread();
+        Thread t = Thread.currentThread();//获取当前线程
         setBlocker(t, blocker);
+        //park函数是将当前Thread阻塞（即Thead.currentThread阻塞）
         UNSAFE.park(false, 0L);
         setBlocker(t, null);
     }
@@ -268,6 +274,8 @@ public class LockSupport {
      * @return the blocker
      * @throws NullPointerException if argument is null
      * @since 1.6
+     * 返回提供给最近一次尚未解除阻塞的 park 方法调用的 blocker 对象，
+     * 如果该调用不受阻塞，则返回 null。
      */
     public static Object getBlocker(Thread t) {
         if (t == null)
@@ -299,6 +307,7 @@ public class LockSupport {
      * method to return. Callers should re-check the conditions which caused
      * the thread to park in the first place. Callers may also determine,
      * for example, the interrupt status of the thread upon return.
+     * 为了线程调度，禁用当前线程，除非许可可用。
      */
     public static void park() {
         UNSAFE.park(false, 0L);

@@ -1777,7 +1777,7 @@ class Thread implements Runnable {
      *     is in this state.
      *     </li>
      * <li>{@link #WAITING}<br>
-     *     A thread that is waiting indefinitely for another thread to
+     *     A thread that is waiting indefinitely（无期限的，不确定的） for another thread to
      *     perform a particular action is in this state.
      *     </li>
      * <li>{@link #TIMED_WAITING}<br>

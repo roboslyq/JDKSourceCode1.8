@@ -43,6 +43,8 @@ import java.util.Collection;
  * {@code synchronized} methods and statements, but with extended
  * capabilities.
  *
+ * 基于AQS的可重入的独享(exclusion)锁，与关键字synchronized的类似能力，并且在synchronized基础上进行了相应的扩展。
+ *
  * <p>A {@code ReentrantLock} is <em>owned</em> by the thread last
  * successfully locking, but not yet unlocking it. A thread invoking
  * {@code lock} will return, successfully acquiring the lock, when
@@ -50,6 +52,7 @@ import java.util.Collection;
  * immediately if the current thread already owns the lock. This can
  * be checked using methods {@link #isHeldByCurrentThread}, and {@link
  * #getHoldCount}.
+ * 如果一个线程区得了锁，则可以多次重新进入，通过{@link #isHeldByCurrentThread}判断当前线程是否已经持有锁。
  *
  * <p>The constructor for this class accepts an optional
  * <em>fairness</em> parameter.  When set {@code true}, under
@@ -64,6 +67,8 @@ import java.util.Collection;
  * fair lock may obtain it multiple times in succession while other
  * active threads are not progressing and not currently holding the
  * lock.
+ * 此类的构造函数接受一个是否公平的锁的参数，默认为false。
+ *
  * Also note that the untimed {@link #tryLock()} method does not
  * honor the fairness setting. It will succeed if the lock
  * is available even if other threads are waiting.
@@ -125,16 +130,21 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs non-fair tryLock.  tryAcquire is implemented in
          * subclasses, but both need nonfair try for trylock method.
+         * 获取成功为true,失败为false
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
             int c = getState();
+            //如果c==0表示没有锁，可以直接尝试CAS操作，成功则直接返回。
             if (c == 0) {
+                //注意：此处没有判断等待队列是否有其它线程，直接尝试进行锁获取并且有可能成功。因此如果等待队列不为空，对等待队列中的
+                //的其它线程是不公平的。
                 if (compareAndSetState(0, acquires)) {
                     setExclusiveOwnerThread(current);
                     return true;
                 }
             }
+            //否则表示有锁，判断锁是不是当前线程持有，如果是则直接重入。
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
                 if (nextc < 0) // overflow
@@ -201,14 +211,17 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs lock.  Try immediate barge, backing up to normal
          * acquire on failure.
+         * 非公平锁获取方法
          */
         final void lock() {
+            //尝试获取锁(父类AQS实现)，如果获取成功。此处是非公平与公平锁之前的差异，公平锁直接进入else条件方法。
             if (compareAndSetState(0, 1))
+                //设置独占线程为当前线程为
                 setExclusiveOwnerThread(Thread.currentThread());
             else
                 acquire(1);
         }
-
+        //非公平的tryAcquire实现
         protected final boolean tryAcquire(int acquires) {
             return nonfairTryAcquire(acquires);
         }
@@ -216,6 +229,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
 
     /**
      * Sync object for fair locks
+     * 公平锁
      */
     static final class FairSync extends Sync {
         private static final long serialVersionUID = -3000897897090466540L;
@@ -227,20 +241,24 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Fair version of tryAcquire.  Don't grant access unless
          * recursive call or no waiters or is first.
+         * 尝试获取锁：公平。
          */
-        protected final boolean tryAcquire(int acquires) {
-            final Thread current = Thread.currentThread();
-            int c = getState();
-            if (c == 0) {
-                if (!hasQueuedPredecessors() &&
-                    compareAndSetState(0, acquires)) {
+        protected final boolean tryAcquire(int acquires) { //入参 acquires  = 1
+            final Thread current = Thread.currentThread();  //当前线程
+            int c = getState(); //当前资源状态
+            if (c == 0) {   //表示锁未被占用空闲，可以尝试CAS获取锁。
+
+                if (!hasQueuedPredecessors() && //此处为公平锁关键，如果等待队列有其它线程，则结束，不进行锁获取尝试。
+                    compareAndSetState(0, acquires) //没有其它线程时，表示只有自己，可以尝试获取锁
+                ) {
+                    //更新成功，设置锁的占有线程为当前线程
                     setExclusiveOwnerThread(current);
                     return true;
                 }
             }
-            else if (current == getExclusiveOwnerThread()) {
-                int nextc = c + acquires;
-                if (nextc < 0)
+            else if (current == getExclusiveOwnerThread()) { //判断锁的占有线程为当前线程，即重入判断
+                int nextc = c + acquires;           //重入1次，状态累加1
+                if (nextc < 0)                      //重入次数过多状态异常（溢出）
                     throw new Error("Maximum lock count exceeded");
                 setState(nextc);
                 return true;
@@ -252,6 +270,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     /**
      * Creates an instance of {@code ReentrantLock}.
      * This is equivalent to using {@code ReentrantLock(false)}.
+     * ReentrantLock的构造函数，默认是非公平锁。
      */
     public ReentrantLock() {
         sync = new NonfairSync();
@@ -260,7 +279,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     /**
      * Creates an instance of {@code ReentrantLock} with the
      * given fairness policy.
-     *
+     * ReentrantLock的构造函数，指是公平锁还是非公平锁。
      * @param fair {@code true} if this lock should use a fair ordering policy
      */
     public ReentrantLock(boolean fair) {
@@ -280,6 +299,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      * current thread becomes disabled for thread scheduling
      * purposes and lies dormant until the lock has been acquired,
      * at which time the lock hold count is set to one.
+     * 获得锁入口方法，继承AQS实现（ReentrantLock.NonfairSync和ReentrantLock.FairSync两个实现）。
      */
     public void lock() {
         sync.lock();

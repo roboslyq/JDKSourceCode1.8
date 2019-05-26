@@ -124,6 +124,8 @@ package java.util.concurrent;
  *
  * @since 1.5
  * @author Doug Lea
+ * 由Doug Lea大神在JDK1.5中引入，只包含一个任务执行方法。
+ * 用户解耦任务(Runnable)与线程(Thread)，从而让使用者可以不必关注线程相关。
  */
 public interface Executor {
 
@@ -131,6 +133,9 @@ public interface Executor {
      * Executes the given command at some time in the future.  The command
      * may execute in a new thread, in a pooled thread, or in the calling
      * thread, at the discretion of the {@code Executor} implementation.
+     *
+     * 执行给定的Runnable任务.
+     * 根据Executor的实现不同, 具体执行方式也不相同.
      *
      * @param command the runnable task
      * @throws RejectedExecutionException if this task cannot be

@@ -400,6 +400,7 @@ public class Executors {
      * @param <T> the type of the result
      * @return a callable object
      * @throws NullPointerException if task null
+     * 完成Runnable到callable之间适配
      */
     public static <T> Callable<T> callable(Runnable task, T result) {
         if (task == null)
@@ -499,6 +500,7 @@ public class Executors {
 
     /**
      * A callable that runs given task and returns given result
+     * 通过构造函数将普通的Runnable类适配成Callable类。
      */
     static final class RunnableAdapter<T> implements Callable<T> {
         final Runnable task;

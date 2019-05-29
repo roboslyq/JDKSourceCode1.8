@@ -59,6 +59,8 @@ import java.util.concurrent.locks.LockSupport;
  * @since 1.5
  * @author Doug Lea
  * @param <V> The result type returned by this FutureTask's {@code get} methods
+ *
+ * 最本质原理：通过JVM内存共享变量outcome，完成不同线程之间数据传递
  */
 public class FutureTask<V> implements RunnableFuture<V> {
     /*
@@ -128,6 +130,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
      *
      * @param  callable the callable task
      * @throws NullPointerException if the callable is null
+     * FutureTask构造函数，参数为Callable
      */
     public FutureTask(Callable<V> callable) {
         if (callable == null)
@@ -147,6 +150,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
      * constructions of the form:
      * {@code Future<?> f = new FutureTask<Void>(runnable, null)}
      * @throws NullPointerException if the runnable is null
+     * FutureTask构造函数，入参为Runnable，通过Executors适配，适配为callable
      */
     public FutureTask(Runnable runnable, V result) {
         this.callable = Executors.callable(runnable, result);
@@ -161,7 +165,27 @@ public class FutureTask<V> implements RunnableFuture<V> {
         return state != NEW;
     }
 
+    /**
+     * 在执行的时候，执行任务的线程会保存在runner属性中，所以对于正在执行的任务，取消的本质就是将执行的线程取出来，向该线程发出interupt信号。
+     * 但对于一个较为完备的取消动作，cancel做了一下几个动作。
+     *
+     *1、 判断任务当前执行状态，如果任务状态不为NEW，则说明任务或者已经执行完成，或者执行异常，不能被取消，直接返回false表示执行失败。
+     *
+     *2、 判断需要中断任务执行线程，则
+     *  2.1 把任务状态从NEW转化到INTERRUPTING。这是个中间状态。
+     *  2.2、中断任务执行线程。
+     *  2.3、修改任务状态为INTERRUPTED。
+     * 3、如果不需要中断任务执行线程，直接把任务状态从NEW转化为CANCELLED。如果转化失败则返回false表示取消失败。
+     * 4、调用finishCompletion
+     *
+     * @param mayInterruptIfRunning {@code true} if the thread executing this
+     * task should be interrupted; otherwise, in-progress tasks are allowed
+     * to complete 在任务运行时是否可以中断？
+     * @return
+     *
+     */
     public boolean cancel(boolean mayInterruptIfRunning) {
+        //1、状态必须为NEW并且
         if (!(state == NEW &&
               UNSAFE.compareAndSwapInt(this, stateOffset, NEW,
                   mayInterruptIfRunning ? INTERRUPTING : CANCELLED)))
@@ -171,12 +195,14 @@ public class FutureTask<V> implements RunnableFuture<V> {
                 try {
                     Thread t = runner;
                     if (t != null)
+                        //发起中断信号
                         t.interrupt();
                 } finally { // final state
                     UNSAFE.putOrderedInt(this, stateOffset, INTERRUPTED);
                 }
             }
         } finally {
+            //中断之后的处理。
             finishCompletion();
         }
         return true;
@@ -184,10 +210,11 @@ public class FutureTask<V> implements RunnableFuture<V> {
 
     /**
      * @throws CancellationException {@inheritDoc}
+     * 获取任务结果
      */
     public V get() throws InterruptedException, ExecutionException {
         int s = state;
-        if (s <= COMPLETING)
+        if (s <= COMPLETING)//任务未完成，进入等待状态
             s = awaitDone(false, 0L);
         return report(s);
     }
@@ -230,6 +257,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
         if (UNSAFE.compareAndSwapInt(this, stateOffset, NEW, COMPLETING)) {
             outcome = v;
             UNSAFE.putOrderedInt(this, stateOffset, NORMAL); // final state
+            //唤醒其它线程
             finishCompletion();
         }
     }
@@ -252,7 +280,22 @@ public class FutureTask<V> implements RunnableFuture<V> {
         }
     }
 
+    /**
+     * FutureTask因为封装了Runnable的接口，实现了run函数，所以可以直接执行，直接执行使用主线程；
+     * FutureTask的另外一种执行方式是提交到线程池去执行，由线程池去分配执行线程；
+     * 只有提交到线程池去执行才能体现异步的特性。不过我们不关注执行的方式，我们关注执行的逻辑。
+     * FutureTask的构造函数传入了Callable或Runnable对象，也即是需要执行的业务逻辑，他是业务逻辑的基本表现形式，
+     * 保存在类属性callable，在run函数里面，调用callalbe.call()来执行业务逻辑。run函数主要完成以下几个操作。
+     *
+     * 1、判断当前状态是否为NEW，如果不是，说明任务被执行过，或者已被取消，直接返回。
+     * 2、如果状态为NEW，接着会通过unsafe类把任务执行线程保存在runner字段中，如果保存失败，则直接返回。
+     * 3、执行任务
+     * 4、任务执行成功，set保存结果，不成功setException保存异常信息，任务的状态在这里改变
+     *
+     */
     public void run() {
+        //判断Future状态，如果不是NEW，说明任务被执行过，或者已被取消，此时不能再重复执行任务，直接返回。
+        //如果是NEW，接着会通过unsafe类把任务执行线程保存在runner(当前Future正在运行的线程)字段中，如果保存失败，则直接返回。
         if (state != NEW ||
             !UNSAFE.compareAndSwapObject(this, runnerOffset,
                                          null, Thread.currentThread()))
@@ -261,17 +304,19 @@ public class FutureTask<V> implements RunnableFuture<V> {
             Callable<V> c = callable;
             if (c != null && state == NEW) {
                 V result;
-                boolean ran;
+                boolean ran;//是否正常结束任务
                 try {
+                    //调用Call并且返回一个Result
                     result = c.call();
                     ran = true;
                 } catch (Throwable ex) {
+                    //如果发生异常，result为null,并且ran为false
                     result = null;
                     ran = false;
                     setException(ex);
                 }
-                if (ran)
-                    set(result);
+                if (ran)//正常结束任务，将结果设置到outcome中
+                    set(result);//完成变量设置，并且唤醒正在等待的结果的线程。
             }
         } finally {
             // runner must be non-null until state is settled to
@@ -279,6 +324,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
             runner = null;
             // state must be re-read after nulling runner to prevent
             // leaked interrupts
+            //由于在任务执行的过程中，可能被取消，所以在finally块里，会任务的根据状态来做一些善后的工作。
             int s = state;
             if (s >= INTERRUPTING)
                 handlePossibleCancellationInterrupt(s);
@@ -363,14 +409,19 @@ public class FutureTask<V> implements RunnableFuture<V> {
      */
     private void finishCompletion() {
         // assert state > COMPLETING;
+        //循环遍历等待队列，逐一唤醒其线程。
         for (WaitNode q; (q = waiters) != null;) {
             if (UNSAFE.compareAndSwapObject(this, waitersOffset, q, null)) {
                 for (;;) {
+                    //取出WaitNode中的线程
                     Thread t = q.thread;
                     if (t != null) {
+                        //清除线程，方便GC
                         q.thread = null;
+                        //唤醒线程t
                         LockSupport.unpark(t);
                     }
+                    //将q.next赋值给q,即获取下一WaitNode，通过自旋将其进行唤醒
                     WaitNode next = q.next;
                     if (next == null)
                         break;
@@ -392,33 +443,42 @@ public class FutureTask<V> implements RunnableFuture<V> {
      * @param timed true if use timed waits
      * @param nanos time to wait, if timed
      * @return state upon completion
+     * 通过自旋方式等待任务完成或者中断或者超时
      */
     private int awaitDone(boolean timed, long nanos)
         throws InterruptedException {
         final long deadline = timed ? System.nanoTime() + nanos : 0L;
         WaitNode q = null;
         boolean queued = false;
+        //自旋
         for (;;) {
+            //如果线程在等待结果中被中断，那么移除等待队列WaitNode并抛出中断异常
             if (Thread.interrupted()) {
                 removeWaiter(q);
                 throw new InterruptedException();
             }
-
+            //判断线程任务状态
             int s = state;
+            //如果任务已完成，直接返回
             if (s > COMPLETING) {
                 if (q != null)
                     q.thread = null;
                 return s;
             }
+            //当状态为完成中，通过Thread.yield()让出CPU时间
             else if (s == COMPLETING) // cannot time out yet
                 Thread.yield();
+            //如果当前线程还没有创建WaitNode等待节点保存到等待队列里面去，则新建一个等待节点
+            //插入到等待链表，表明当前线程也准备进入等待该任务完成的队列中去，然后自旋
             else if (q == null)
                 q = new WaitNode();
             else if (!queued)
                 queued = UNSAFE.compareAndSwapObject(this, waitersOffset,
                                                      q.next = waiters, q);
+            //如果设置了超时的时间，则将时间作为参数传递到park中去。如果没有设置超时，则直接park
             else if (timed) {
                 nanos = deadline - System.nanoTime();
+                //如果等待时间已经到了，则移除等待队列，并且返回当前任务状态。
                 if (nanos <= 0L) {
                     removeWaiter(q);
                     return state;
@@ -438,7 +498,8 @@ public class FutureTask<V> implements RunnableFuture<V> {
      * removed nodes, the list is retraversed in case of an apparent
      * race.  This is slow when there are a lot of nodes, but we don't
      * expect lists to be long enough to outweigh higher-overhead
-     * schemes.
+     *
+     * 移除等待队列
      */
     private void removeWaiter(WaitNode node) {
         if (node != null) {
@@ -464,6 +525,7 @@ public class FutureTask<V> implements RunnableFuture<V> {
     }
 
     // Unsafe mechanics
+    //Unsafe相关技术，原子操作实现
     private static final sun.misc.Unsafe UNSAFE;
     private static final long stateOffset;
     private static final long runnerOffset;

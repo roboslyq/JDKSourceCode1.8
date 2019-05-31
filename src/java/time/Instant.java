@@ -203,6 +203,7 @@ import java.util.Objects;
  * This class is immutable and thread-safe.
  *
  * @since 1.8
+ * 它代表的是时间戳
  */
 public final class Instant
         implements Temporal, TemporalAdjuster, Comparable<Instant>, Serializable {

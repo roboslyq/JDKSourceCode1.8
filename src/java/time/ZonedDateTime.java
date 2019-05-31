@@ -160,6 +160,7 @@ import java.util.Objects;
  * This class is immutable and thread-safe.
  *
  * @since 1.8
+ * 这是一个包含时区的完整的日期时间，偏移量是以UTC/格林威治时间为基准的。
  */
 public final class ZonedDateTime
         implements Temporal, ChronoZonedDateTime<LocalDate>, Serializable {

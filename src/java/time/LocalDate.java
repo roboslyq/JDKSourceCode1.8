@@ -133,6 +133,7 @@ import java.util.Objects;
  * This class is immutable and thread-safe.
  *
  * @since 1.8
+ * 不包含具体时间的日期，比如2014-01-14。它可以用来存储生日，周年纪念日，入职日期等。
  */
 public final class LocalDate
         implements Temporal, TemporalAdjuster, ChronoLocalDate, Serializable {

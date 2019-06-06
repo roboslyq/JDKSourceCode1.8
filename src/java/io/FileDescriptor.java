@@ -37,6 +37,14 @@ import java.util.List;
  *
  * <p>Applications should not create their own file descriptors.
  *
+ * FileDescriptor 是“文件描述符”。
+ * 操作系统使用文件描述符来指代一个打开的文件，对文件的读写操作，都需要文件描述符作为参数。
+ * Java虽然在设计上使用了抽象程度更高的流来作为文件操作的模型，但是底层依然要使用文件描述符与操作系统交互，
+ * 而Java世界里文件描述符的对应类就是FileDescriptor。
+ * 所以,FileDescriptor可以被用来表示开放文件、开放套接字等。以FileDescriptor表示文件来说：当FileDescriptor表示某文件时，我们可以通俗的将FileDescriptor看成是该文件。
+ * 但是，我们不能直接通过FileDescriptor对该文件进行操作；
+ * 若需要通过FileDescriptor对该文件进行操作，则需要新创建FileDescriptor对应的FileOutputStream，再对文件进行操作。
+ *
  * @author  Pavani Diwanji
  * @since   JDK1.0
  */

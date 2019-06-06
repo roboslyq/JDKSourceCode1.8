@@ -95,6 +95,31 @@ import sun.security.util.SecurityConstants;
  * @since 1.2
  *
  * @serial exclude
+ * 1、这个类表示对文件和目录的访问
+ * 2、FilePermission包括了一个路径名和一系列对该路径的有效操作
+ * 3、路径名是被授予指定操作的文件的路径名
+ * 4、一个路径名以‘／’（该文件系统的路径分隔符为‘／’）结尾时，表示该路径下的所有文件和目录
+ * 5、一个路径名以‘/-’为路径结尾时，递归的表示该路径下的所有文件和子目录（就是说子目录下的目录和文件也被包含。
+ *    可以用特殊字段‘<<ALL FILES>>’作为路径名来匹配所有的文件和目录
+ *
+ * 由单个‘*’组成的路径表示当前路径下的所有文件及目录，由单个‘-’组成的路径递归表示当前路径下的所有文件及目录
+ *
+ *
+ * 将需要授予操作的关键字以字符串形式传递给构造函数，该字符串包含一个或多个关键字，用逗号相隔。
+ * 可能使用的关键字有：‘read’，‘write’，‘execute’，‘delete’，‘readlink’。
+ *
+ * 关键字对应操作如下：
+ *      read：读权限
+ *      write：写权限
+ *      execute：执行权限，允许调用Runtime.exec，符合SecurityManager.CheckExec的要求
+ *      delete：删除权限，允许调用File.delete，符合SecurityManager.CheckDelete的要求
+ *      readlink：读取链接权限，允许通过调用Java.nio.file.Files中的readSymbolicLink方法来读取链接对象
+
+ *
+ * 请小心的授权FilePermission，对各种目录和文件进行读和写权限授予时（尤其是写权限）请三思而后行
+ *
+ * 对<<All Files>>授予写权限是特别危险的，这个将会授予其对整个文件系统的修改权限，事实上他甚至允许了对系统二进制文件进行替换（包括java虚拟机的运行环境
+ * 该类总是有对其目录下文件（包含子目录的读取权限）的读权限（不包含写权限），不需要显式授权
  */
 
 public final class FilePermission extends Permission implements Serializable {

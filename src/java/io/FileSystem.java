@@ -29,6 +29,10 @@ import java.lang.annotation.Native;
 
 /**
  * Package-private abstract class for the local filesystem abstraction.
+ * 文件系统的抽象
+ *  1、windows下的实现类为:WinNTFileSystem,在IDE中可以直接找到
+ *  2、Linux下的实现类为: UnixFileSystem
+ *  此类的具体实现是分开的，不同系统的JDK文件系统不一样。
  */
 
 abstract class FileSystem {

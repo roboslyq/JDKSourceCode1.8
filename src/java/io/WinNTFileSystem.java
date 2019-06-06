@@ -34,6 +34,8 @@ import sun.security.action.GetPropertyAction;
  *
  * @author Konstantin Kladko
  * @since 1.4
+ * 操作系统有各自的文件系统，这些文件系统又存在很多差异，而Java 因为是跨平台的，所以它必须要统一处理这些不同平台
+ * 文件系统之间的差异，才能往上提供统一的入口。此类仅在Windows版的JDK中存在。
  */
 class WinNTFileSystem extends FileSystem {
 

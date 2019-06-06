@@ -95,7 +95,7 @@ import sun.security.util.SecurityConstants;
  * @since 1.2
  *
  * @serial exclude
- * 1、这个类表示对文件和目录的访问
+ * 1、这个类表示对文件和目录权限控制（access）
  * 2、FilePermission包括了一个路径名和一系列对该路径的有效操作
  * 3、路径名是被授予指定操作的文件的路径名
  * 4、一个路径名以‘／’（该文件系统的路径分隔符为‘／’）结尾时，表示该路径下的所有文件和目录

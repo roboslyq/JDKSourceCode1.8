@@ -417,6 +417,19 @@ import sun.util.locale.provider.LocaleProviderAdapter;
  * @see          DateFormat
  * @see          DateFormatSymbols
  * @author       Mark Davis, Chen-Lieh Huang, Alan Liu
+ * 注意： 此类线程不安全，原因如下
+ * 1、内置了实例属性（父类）calendar，此属性是线程不安全的。此属性是内部用来完成日期时间相关计算的中间变量。
+ *
+ * 2、在parse(String source) 时，会在calb.establish(calendar)将调用calendar.clear()方法，然后重新根据source生成calendar
+ *
+ * 3、如果此时有线程在执行format方法，得到的calendar就会为空。导致异常
+ *
+ * 总结：原来SimpleDateFormat类内部有一个Calendar对象引用,它用来储存和这个SimpleDateFormat相关的日期信息,
+ *      例如sdf.parse(dateStr),sdf.format(date) 诸如此类的方法参数传入的日期相关String,Date等等,
+ *      都是交由Calendar引用来储存的.这样就会导致一个问题,如果你的SimpleDateFormat是个static的,
+ *      那么多个thread 之间就会共享这个SimpleDateFormat, 同时也是共享这个Calendar引用。单例、多线程、
+ *      又有成员变量（这个变量在方法中是可以修改的），这个场景是不是很像servlet，在高并发的情况下，
+ *      容易出现幻读成员变量的现象，故说SimpleDateFormat是线程不安全的对象。
  */
 public class SimpleDateFormat extends DateFormat {
 

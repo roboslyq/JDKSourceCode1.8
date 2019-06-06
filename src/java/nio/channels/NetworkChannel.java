@@ -41,7 +41,7 @@ import java.io.IOException;
  * #getOption(SocketOption) getOption} methods are used to set and query socket
  * options.  An implementation of this interface should specify the socket options
  * that it supports.
- *
+ * 继承通用Channel，来处理network相关链接。添加了网络相关的操作，并且进行了简单的扩展
  * <p> The {@link #bind bind} and {@link #setOption setOption} methods that do
  * not otherwise have a value to return are specified to return the network
  * channel upon which they are invoked. This allows method invocations to be

@@ -54,6 +54,44 @@ import sun.nio.ch.FileChannelImpl;
  *
  * @author  unascribed
  * @since   JDK1.0
+ *
+ * 一：含义
+ *
+ * 　　随机读写文件类型。　
+ *
+ * 二：作用
+ *
+ * 　　就是对文件可以进行读取，也可以进行写入操作。
+ *
+ * 三：构造器
+ *
+ * 　　RandomAccessFile(File file,String mode);
+ *
+ * 　　　　file：文件类型，传一个具体的文件对象，而不是目录。
+ *
+ * 　　　　mode：是文件的读写模式（文件是否可读，可写）。
+ *
+ * 　　　　mode的值只能是"rw"，"r"。
+ *
+ * 　　RandomAccessFile(String pathname,String mode);
+ *
+ * 　　　　pathname：是一个文件的具体路径。
+ *
+ * 四：常用方法
+ *
+ * 　　write(int a),read(),读与写都只能操作一个字节，也就是8位，只能写出a的二进制的低八位。
+ *
+ * 五：其他方法
+ *
+ * 　　　　read(byte[] arr)：将读取到的arr.length个字节存入数组arr中，返回值为实际读取的有效字节个数。
+ *
+ * 　　　　write(byte[] arr)：将字节数组里的字节写入文件。
+ *
+ * 　　　　write(byte[] arr,int startIndex,int length)：将字节数组里的字节从下标startIndex开始，写length个字节。
+ *
+ * 　　　　getFilePointer()：获取文件指针的下标。
+ *
+ * 　　　　seek(int index)：将指针移动到某一下标。　
  */
 
 public class RandomAccessFile implements DataOutput, DataInput, Closeable {

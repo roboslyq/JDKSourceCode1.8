@@ -31,8 +31,8 @@ package java.io;
  * listings in the <code>list</code> method of class
  * <code>File</code>, and by the Abstract Window Toolkit's file
  * dialog component.
- * 文件名称过滤器，在调用File(为目录时)的listFiles（）方法枚举当前目录下所有文件时，可以通过此接口进行相关
- * 过滤操作。
+ * 此接口为函数式接口，功能为文件名称过滤器。
+ * 在调用File(为目录时)的listFiles（）方法枚举当前目录下所有文件时，可以通过此接口进行相关过滤操作。
  * @author  Arthur van Hoff
  * @author  Jonathan Payne
  * @see     java.awt.FileDialog#setFilenameFilter(java.io.FilenameFilter)

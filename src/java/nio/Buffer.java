@@ -182,6 +182,53 @@ public abstract class Buffer {
         Spliterator.SIZED | Spliterator.SUBSIZED | Spliterator.ORDERED;
 
     // Invariants: mark <= position <= limit <= capacity
+    /**
+     * 1、容量（capacity）
+     *      缓冲区能够容纳的数据元素的最大数量。这一容量在缓冲区创建时被设定，并且永远不能被改变。
+     * 2、上界（limit）
+     *      分为读和写两种模式：
+     *      在从缓冲区读数据（在从缓冲区写入通道时），指定还有多少数据需要取出。
+     *      在往缓冲区写数据时（在从通道读入缓冲区时），或者还有多少空间可以放入数据。
+     * 3、位置（position）
+     *      下一个要被读或写的元素的索引。位置会自动由响应的get()和put()函数更新。
+     * 4、标记（mark）
+     *      一个备忘位置。调用mark()来设定mark = position，调用reset（）设定position= mark。标记在设定前是未定义的。
+     * 这四个属性关系如下：
+     *  0 <= mark <= position <= limit <= capacity
+     *
+     *
+     *  1、示例：
+     *  如果我们创建一个新的容量大小为10的ByteBuffer对象，在初始化时mark为-1位置，position设置为0，imit和 capacity被设置为10 [注意是10而不是9]。
+     *  在以后使用ByteBuffer对象过程中，capacity的值不会再发生变化。
+     *
+     *  状态1：初始化
+     *  [mark = -1][position = 0] [] [] [] [] [] [] [] [] [] [limit / capacity = 10]
+     *
+     *  状态2：从通过读取5个字节数据到缓冲区（写缓冲区）
+     *  [mark = -1][] [] [] [] [position = 4] [] [] [] [] [] [limit / capacity = 10]
+     *
+     *  状态3-1：将缓冲区数据写入通道，即读缓冲区。注意，读之前请先调用flip()方法：
+     *      调用flip方法之后：
+     *      [mark = -1][position = 0] [] [] [] [limit = 4] [] [] [] [] [] [ capacity = 10]
+     *      读取1个字节数据：
+     *      [mark = -1][] [position = 1] [] [] [limit = 4] [] [] [] [] [] [ capacity = 10]
+     *      读取2个字节数据：
+     *      [mark = -1][] [] [position = 2] [] [limit = 4] [] [] [] [] [] [ capacity = 10]
+     *      读取3个字节数据：
+     *      [mark = -1][] [] [] [position = 3] [limit = 4] [] [] [] [] [] [ capacity = 10]     、
+     *      读取4个字节数据：
+     *      [mark = -1][] [] [] [] [position = limit = 4] [] [] [] [] [] [ capacity = 10]
+     *      此时，position = limit，认为数据已经读取完成。
+     *
+     *  数据读取完成之后，再调用clear方法（此时数据已经恢复到初始化状态，可以重新读取数据）：
+     *      [mark = -1][position = 0] [] [] [] [] [] [] [] [] [] [limit / capacity = 10]
+     *
+     *  2、操作步骤总结：
+     *  （1）创建buffer(初始化buffer)
+     *  （2）数据写入Buffer
+     *  （3）调用flip()方法，然后进行读取
+     *  （4）读取完成后，调用clear() 方法，重新准备回到初始化状态，准备接收新的数据。
+     */
     private int mark = -1;
     private int position = 0;
     private int limit;
@@ -325,7 +372,7 @@ public abstract class Buffer {
      *
      * @return  This buffer
      */
-    public final Buffer clear() {
+    public final Buffer clear() {//重置缓冲区方法，回复初始状态
         position = 0;
         limit = capacity;
         mark = -1;
@@ -354,9 +401,9 @@ public abstract class Buffer {
      * @return  This buffer
      */
     public final Buffer flip() {
-        limit = position;
-        position = 0;
-        mark = -1;
+        limit = position; //将position赋值给limit，此时limit表示position所有位置
+        position = 0;//然后position重新从0开始
+        mark = -1;  //mark重新始于 -1
         return this;
     }
 

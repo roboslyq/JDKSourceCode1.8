@@ -33,6 +33,7 @@ import java.util.Set;
 
 /**
  * A multiplexor of {@link SelectableChannel} objects.
+ * 具体多路利用能力（实现了SelectableChannel）对象的多路利用器。
  *
  * <p> A selector may be created by invoking the {@link #open open} method of
  * this class, which will use the system's default {@link
@@ -41,7 +42,9 @@ import java.util.Set;
  * {@link java.nio.channels.spi.SelectorProvider#openSelector openSelector}
  * method of a custom selector provider.  A selector remains open until it is
  * closed via its {@link #close close} method.
- *
+ * 可以通过Selector.open()方法来构造一个具体的实现对象，此对象由SPI机制在不同的操作系统中提供不同的实现。
+ * 也可以通过SelectorProvider.openSelector()创建。
+ * 此对象会一直打开直到调用close()方法手动关闭。
  * <a name="ks"></a>
  *
  * <p> A selectable channel's registration with a selector is represented by a

@@ -333,7 +333,7 @@ public abstract class Buffer {
     }
 
     /**
-     * Flips this buffer.  The limit is set to the current position and then
+     *  Flips this buffer.  The limit is set to the current position and then
      * the position is set to zero.  If the mark is defined then it is
      * discarded.
      *

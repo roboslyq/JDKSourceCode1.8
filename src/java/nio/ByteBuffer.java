@@ -38,36 +38,41 @@ package java.nio;
 
 /**
  * A byte buffer.
+ * 一个字节码缓冲区
  *
  * <p> This class defines six categories of operations upon
- * byte buffers:
+ *  * byte buffers :
+ *  该类定义了6大类缓冲区的操作类型：
  *
  * <ul>
  *
  *   <li><p> Absolute and relative {@link #get() <i>get</i>} and
  *   {@link #put(byte) <i>put</i>} methods that read and write
  *   single bytes; </p></li>
+ *    操作1：get()或者put()操作单个字节
  *
  *   <li><p> Relative {@link #get(byte[]) <i>bulk get</i>}
  *   methods that transfer contiguous sequences of bytes from this buffer
  *   into an array; </p></li>
+ *   操作2：get(byte[]) 获取连续序列到指定的byte数组中
  *
  *   <li><p> Relative {@link #put(byte[]) <i>bulk put</i>}
  *   methods that transfer contiguous sequences of bytes from a
  *   byte array or some other byte
  *   buffer into this buffer; </p></li>
- *
+ *   操作3：put(byte[])将指定的字节数据放入缓冲区
 
  *
  *   <li><p> Absolute and relative {@link #getChar() <i>get</i>}
  *   and {@link #putChar(char) <i>put</i>} methods that read and
  *   write values of other primitive types, translating them to and from
  *   sequences of bytes in a particular byte order; </p></li>
+ *   操作4：直接获取或者保存单个字符
  *
  *   <li><p> Methods for creating <i><a href="#views">view buffers</a></i>,
  *   which allow a byte buffer to be viewed as a buffer containing values of
  *   some other primitive type; and </p></li>
- *
+ *   操作5：
 
  *
  *   <li><p> Methods for {@link #compact compacting}, {@link
@@ -78,7 +83,7 @@ package java.nio;
  *
  * <p> Byte buffers can be created either by {@link #allocate
  * <i>allocation</i>}, which allocates space for the buffer's
- *
+ *  可以通过allocate()方法来创建缓冲区
 
  *
  * content, or by {@link #wrap(byte[]) <i>wrapping</i>} an
@@ -96,7 +101,7 @@ package java.nio;
  *
  * <a name="direct"></a>
  * <h2> Direct <i>vs.</i> non-direct buffers </h2>
- *
+ * 直接内存与非直接内存对比：
  * <p> A byte buffer is either <i>direct</i> or <i>non-direct</i>.  Given a
  * direct byte buffer, the Java virtual machine will make a best effort to
  * perform native I/O operations directly upon it.  That is, it will attempt to

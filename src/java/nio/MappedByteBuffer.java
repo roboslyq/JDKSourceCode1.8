@@ -31,7 +31,10 @@ import sun.misc.Unsafe;
 
 /**
  * A direct byte buffer whose content is a memory-mapped region of a file.
- *
+ * 使direct byte buffer实现byteBuffer功能。速度快！！！
+ * direct buffer的方式读写文件内容，这种方式的学名叫做内存映射。
+ * 这种方式直接调用系统底层的缓存，没有JVM和系统之间的复制操作，所以效率大大的提高了。
+ * 而且由于它这么快，还可以用它来在进程（或线程）间传递消息，基本上能达到和“共享内存页”相同的作用，只不过它是依托实体文件来运行的。
  * <p> Mapped byte buffers are created via the {@link
  * java.nio.channels.FileChannel#map FileChannel.map} method.  This class
  * extends the {@link ByteBuffer} class with operations that are specific to

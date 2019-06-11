@@ -35,7 +35,10 @@ import sun.util.logging.PlatformLogger;
  * whether the system property {@code org.openjdk.java.util.stream.tripwire} is
  * considered {@code true} according to {@link Boolean#getBoolean(String)}.
  * This should normally be turned off for production use.
- *
+ * 1、tripwire在编程界中，常指Linux下的一个检测重要文件是否被篡改的安全程序
+ * 2、当前类Tripwire是一个实用工具类，用于检测stream类中的装箱问题。
+ * 3、可以通过系统属性org.openjdk.java.util.stream.tripwire=true/false来控制此功能开关。
+ * 4、通常生产上建议关闭此功能。
  * @apiNote
  * Typical usage would be for boxing code to do:
  * <pre>{@code

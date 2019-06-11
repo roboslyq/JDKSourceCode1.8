@@ -42,10 +42,12 @@ package java.util.concurrent.atomic;
  * <p>Implementation note: This implementation maintains stamped
  * references by creating internal objects representing "boxed"
  * [reference, integer] pairs.
- *
+ * 将一个Integer类型标志（版本号）与对象引用一起维护，并且这个Integer标志可以自动更新。
+ * 实现原理是通过一个内部类，装箱引用对象和Integer标志。
  * @since 1.5
  * @author Doug Lea
  * @param <V> The type of object referred to by this reference
+ * 使用版本号，解决CAS中的ABA问题。
  */
 public class AtomicStampedReference<V> {
 
@@ -148,11 +150,11 @@ public class AtomicStampedReference<V> {
                                  int newStamp) {
         Pair<V> current = pair;
         return
-            expectedReference == current.reference &&
-            expectedStamp == current.stamp &&
-            ((newReference == current.reference &&
-              newStamp == current.stamp) ||
-             casPair(current, Pair.of(newReference, newStamp)));
+            expectedReference == current.reference && //期望引用与当前引用比较
+            expectedStamp == current.stamp && //期望版本号与当前持有版本号比较
+            ((newReference == current.reference && //新引用与当前引用比较（必须相同，表示是同一对象）
+              newStamp == current.stamp) || //新引用与当前引用比较（必须相同，表示是同一对象
+             casPair(current, Pair.of(newReference, newStamp))); //交易当前引用和新引用+版本号
     }
 
     /**

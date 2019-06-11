@@ -30,10 +30,11 @@ import java.util.function.Supplier;
 
 /**
  * Low-level utility methods for creating and manipulating streams.
- *
+ * 底层的创建和修改流的工具类
  * <p>This class is mostly for library writers presenting stream views
  * of data structures; most static stream methods intended for end users are in
  * the various {@code Stream} classes.
+ * 此类主要是提供给底层的lib包编写人员使用。用户主要使用的是Stream中的相关静态方法来完成相应的操作。
  *
  * @since 1.8
  */
@@ -45,7 +46,7 @@ public final class StreamSupport {
     /**
      * Creates a new sequential or parallel {@code Stream} from a
      * {@code Spliterator}.
-     *
+     * 创建一个新的串行或者并行流
      * <p>The spliterator is only traversed, split, or queried for estimated
      * size after the terminal operation of the stream pipeline commences.
      *

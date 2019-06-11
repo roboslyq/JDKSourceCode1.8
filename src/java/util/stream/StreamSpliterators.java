@@ -43,6 +43,8 @@ import java.util.function.Supplier;
  * Spliterator implementations for wrapping and delegating spliterators, used
  * in the implementation of the {@link Stream#spliterator()} method.
  *
+ * 用于包装和委托Spliterator的各种实现，在{@link Stream# Spliterator()方法的实现中使用。
+ *
  * @since 1.8
  */
 class StreamSpliterators {
@@ -1316,7 +1318,7 @@ class StreamSpliterators {
 
     /**
      * A Spliterator that infinitely supplies elements in no particular order.
-     *
+     *  一个无限地以无特定顺序提供元素的Spliterator。
      * <p>Splitting divides the estimated size in two and stops when the
      * estimate size is 0.
      *
@@ -1341,14 +1343,28 @@ class StreamSpliterators {
             return IMMUTABLE;
         }
 
+        /**
+         * 构造一个无限容量的提供者，元素类型为Reference（即引用）
+         * @param <T>
+         */
         static final class OfRef<T> extends InfiniteSupplyingSpliterator<T> {
             final Supplier<T> s;
-
+            /**
+             * size默认为LONG_MAX
+             * Supplier为元素的生产者
+             * @param size
+             * @param s
+             */
             OfRef(long size, Supplier<T> s) {
                 super(size);
                 this.s = s;
             }
 
+            /**
+             * 单个消费元素
+             * @param action The action
+             * @return
+             */
             @Override
             public boolean tryAdvance(Consumer<? super T> action) {
                 Objects.requireNonNull(action);
@@ -1357,6 +1373,10 @@ class StreamSpliterators {
                 return true;
             }
 
+            /**
+             * 切分元素
+             * @return
+             */
             @Override
             public Spliterator<T> trySplit() {
                 if (estimate == 0)

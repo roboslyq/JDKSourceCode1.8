@@ -1068,11 +1068,17 @@ public interface Stream<T> extends BaseStream<T, Stream<T>> {
      * @param <T> the type of stream elements
      * @param s the {@code Supplier} of generated elements
      * @return a new infinite sequential unordered {@code Stream}
+     * 第一步：产生Stream流方法入口之一，通过此方法可以通过Supplier函数来实现生产者。
      */
     public static<T> Stream<T> generate(Supplier<T> s) {
         Objects.requireNonNull(s);
+        //通过StreamSupport.stream构建一个流
         return StreamSupport.stream(
-                new StreamSpliterators.InfiniteSupplyingSpliterator.OfRef<>(Long.MAX_VALUE, s), false);
+                //构建一个StreamSpliterators(无限的引用型的Spliterator，类型为OfRef)
+                new StreamSpliterators.InfiniteSupplyingSpliterator.OfRef<>(Long.MAX_VALUE, s)
+                //是否并行，默认为false
+                , false
+        );
     }
 
     /**

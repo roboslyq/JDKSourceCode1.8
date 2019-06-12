@@ -46,7 +46,7 @@ public final class StreamSupport {
     /**
      * Creates a new sequential or parallel {@code Stream} from a
      * {@code Spliterator}.
-     * 创建一个新的串行或者并行流
+     * 从一个指定的{@code Spliterator}.中创建一个新的串行或者并行流
      * <p>The spliterator is only traversed, split, or queried for estimated
      * size after the terminal operation of the stream pipeline commences.
      *

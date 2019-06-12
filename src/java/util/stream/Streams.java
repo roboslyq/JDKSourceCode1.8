@@ -35,6 +35,8 @@ import java.util.function.LongConsumer;
 /**
  * Utility methods for operating on and creating streams.
  *
+ * Stream的工厂类，通过各种方法来操作和创建Stream。
+ *
  * <p>Unless otherwise stated, streams are created as sequential streams.  A
  * sequential stream can be transformed into a parallel stream by calling the
  * {@code parallel()} method on the created stream.

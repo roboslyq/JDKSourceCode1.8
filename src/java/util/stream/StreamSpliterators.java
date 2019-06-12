@@ -1361,14 +1361,16 @@ class StreamSpliterators {
             }
 
             /**
-             * 单个消费元素
+             * 单个消费元素：
+             *   通过调用生产者s的get()方法，获取生产者所生产元素，即消费可消费的元素。
              * @param action The action
              * @return
              */
             @Override
             public boolean tryAdvance(Consumer<? super T> action) {
+                //断言消费者不能为空
                 Objects.requireNonNull(action);
-
+                //消费者action通过accept方法消费生产s通过get()生产的元素。
                 action.accept(s.get());
                 return true;
             }

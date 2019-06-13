@@ -43,7 +43,7 @@ package java.util.stream;
  * input shape.  When representing primitive streams in this way, the
  * generic type parameter should correspond to the wrapper type for that
  * primitive type.
- *
+ * 描述了流类型：引用，Int,Long,Double
  * @since 1.8
  */
 enum StreamShape {

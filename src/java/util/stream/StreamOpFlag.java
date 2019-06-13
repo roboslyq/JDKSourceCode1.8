@@ -32,7 +32,7 @@ import java.util.Spliterator;
  * Flags corresponding to characteristics of streams and operations. Flags are
  * utilized by the stream framework to control, specialize or optimize
  * computation.
- *
+ * 流的操作特征标识符与操作的映射关系。
  * <p>
  * Stream flags may be used to describe characteristics of several different
  * entities associated with streams: stream sources, intermediate operations,

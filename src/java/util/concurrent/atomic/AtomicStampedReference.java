@@ -148,13 +148,13 @@ public class AtomicStampedReference<V> {
                                  V   newReference,
                                  int expectedStamp,
                                  int newStamp) {
-        Pair<V> current = pair;
+        Pair<V> current = pair; // 获取当前对象与标识引用对
         return
-            expectedReference == current.reference && //期望引用与当前引用比较
-            expectedStamp == current.stamp && //期望版本号与当前持有版本号比较
-            ((newReference == current.reference && //新引用与当前引用比较（必须相同，表示是同一对象）
-              newStamp == current.stamp) || //新引用与当前引用比较（必须相同，表示是同一对象
-             casPair(current, Pair.of(newReference, newStamp))); //交易当前引用和新引用+版本号
+            expectedReference == current.reference && //期望对象引用与当前对象引用是否相等，不相等表示已经被修改过了，CAS失败
+            expectedStamp == current.stamp && //期望版本号与当前持有版本号比较是否相等，不相等表示已经被修改过了，CAS失败（此处是防止ABA问题关键）
+            ((newReference == current.reference &&
+              newStamp == current.stamp) || //新的引用对象是否等于当前引用对象，新的stamp是否等于当前stamp，若条件成立不需要CAS，直接返回成功
+             casPair(current, Pair.of(newReference, newStamp))); //进行pair 的cas操作
     }
 
     /**
@@ -193,6 +193,7 @@ public class AtomicStampedReference<V> {
     // Unsafe mechanics
 
     private static final sun.misc.Unsafe UNSAFE = sun.misc.Unsafe.getUnsafe();
+    //获取pair属性的偏移量
     private static final long pairOffset =
         objectFieldOffset(UNSAFE, "pair", AtomicStampedReference.class);
 

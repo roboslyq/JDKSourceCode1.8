@@ -157,6 +157,9 @@ abstract class ReferencePipeline<P_IN, P_OUT>
     }
 
     @Override
+    /**
+     * 元素过滤操作
+     */
     public final Stream<P_OUT> filter(Predicate<? super P_OUT> predicate) {
         Objects.requireNonNull(predicate);
         return new StatelessOp<P_OUT, P_OUT>(this, StreamShape.REFERENCE,

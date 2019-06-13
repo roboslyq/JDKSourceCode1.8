@@ -61,7 +61,7 @@ import java.util.function.ToLongFunction;
  * Implementations of {@link Collector} that implement various useful reduction
  * operations, such as accumulating elements into collections, summarizing
  * elements according to various criteria, etc.
- *
+ * 聚合操作的工厂类，通过内部类模式实现接口Collector。
  * <p>The following are examples of using the predefined collectors to perform
  * common mutable reduction tasks:
  *

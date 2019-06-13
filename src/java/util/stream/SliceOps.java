@@ -29,9 +29,12 @@ import java.util.concurrent.CountedCompleter;
 import java.util.function.IntFunction;
 
 /**
+ *
  * Factory for instances of a short-circuiting stateful intermediate operations
  * that produce subsequences of their input stream.
- *
+ * 类别：工厂类
+ * 功能：对一系列元素进行短路，有状态的，中间操作。
+ * 目的：生成其输入流的子序列。
  * @since 1.8
  */
 final class SliceOps {

@@ -562,7 +562,7 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
     /**
      * Source stage of a ReferencePipeline.
-     *
+     * Pipeline的源头
      * @param <E_IN> type of elements in the upstream source
      * @param <E_OUT> type of elements in produced by this stage
      * @since 1.8
@@ -628,7 +628,7 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
     /**
      * Base class for a stateless intermediate stage of a Stream.
-     *
+     * 无状态中间操作基类
      * @param <E_IN> type of elements in the upstream source
      * @param <E_OUT> type of elements in produced by this stage
      * @since 1.8

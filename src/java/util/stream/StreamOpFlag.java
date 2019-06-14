@@ -244,6 +244,9 @@ enum StreamOpFlag {
      */
     // 0, 0x00000001
     // Matches Spliterator.DISTINCT
+    //此属性表明该stream已经是distinct的了，因此，如果Spliterator含有此属性，则
+    //在stream.distinct()调用的时候，是直接输出该stream的，也就是distinct方法不进行通常意义上的唯一性过滤。
+
     DISTINCT(0,
              set(Type.SPLITERATOR).set(Type.STREAM).setAndClear(Type.OP)),
 

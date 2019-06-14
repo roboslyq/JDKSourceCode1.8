@@ -31,10 +31,17 @@ import java.util.function.LongConsumer;
 
 /**
  *
- * Spliterator是一个可分割迭代器(splitable iterator)，可以和iterator顺序遍历迭代器类比。
- * jdk1.8发布后，对于并行处理的能力大大增强，Spliterator就是为了并行遍历元素而设计的一个迭代器，
- * jdk1.8中的集合框架中的数据结构都默认实现了spliterator
- *
+ * 1、Spliterator是一个可分割迭代器(splitable iterator)。
+ * 2、jdk1.8发布后，对于并行处理的能力大大增强，Spliterator就是为了<b>并行<b/>遍历元素而设计的一个迭代器。
+ * 3、此迭代器可以类比最早Java提供的顺序遍历迭代器Iterator，但一个是顺序遍历，一个是并行遍历。
+ * 4、jdk1.8中的集合框架中的数据结构都默认实现了spliterator,相应的这个实现其实就是底层Stream如何并行遍历（Stream.isParallel()）
+ *      因此平常用到Spliterator的情况是不多的，主要是JDK相关框架内部实现使用。因为Java8这次正是一次引用函数式编程的思想，
+ *      你只需要告诉JDK你要做什么并行任务，关注业务本身，至于如何并行，怎么并行效率最高，就交给JDK自己去思考和优化速度了，
+ *      作为调用者我们只需要去关心一些filter，map，collect等业务操作即可。
+ * 5、Spliterators是Spliterator的工厂类，有很多实现类你可以在Spliterators中找到的。
+ * 6、对于Spliterator接口的设计思想，应该要提到的是Java7的Fork/Join(分支/合并)框架，总得来说就是用递归的方式把并行的任务拆分成更小的子任务，
+ *      然后把每个子任务的结果合并起来生成整体结果。
+ * 7、用户可以实现此接口，扩展自定义实现
  * An object for traversing and partitioning elements of a source.  The source
  * of elements covered by a Spliterator could be, for example, an array, a
  * {@link Collection}, an IO channel, or a generator function.
@@ -310,7 +317,7 @@ public interface Spliterator<T> {
      * @return {@code false} if no remaining elements existed
      * upon entry to this method, else {@code true}.
      * @throws NullPointerException if the specified action is null
-     * 单个对元素执行给定的动作，如果有剩下元素未处理返回true，否则返回false
+     * 顺序的处理单个元素，对单个对元素执行给定的动作(入参lambda表达式action)，如果有剩下元素未处理返回true，否则返回false
      */
     boolean tryAdvance(Consumer<? super T> action);
 
@@ -328,10 +335,16 @@ public interface Spliterator<T> {
      * @param action The action
      * @throws NullPointerException if the specified action is null
      * 对每个剩余元素执行给定的动作，依次处理，直到所有元素已被处理或被异常终止。
-     * 默认方法调用tryAdvance方法
+     * 该方法循环遍历调用tryAdvance方法，直到返回false。因为tryAdvance是必须实现的方法，因此重写forEachRemaining
+     * 只有对优化代码有作用，无法做到不写tryAdvance方法实现。
      */
-    default void forEachRemaining(Consumer<? super T> action) {
-        do { } while (tryAdvance(action));
+    default void forEachRemaining(Consumer<? super T> action)
+    {
+        do {
+
+        } while (
+                tryAdvance(action)
+        );
     }
 
     /**
@@ -375,6 +388,8 @@ public interface Spliterator<T> {
      * @return a {@code Spliterator} covering some portion of the
      * elements, or {@code null} if this spliterator cannot be split
      * //对任务分割，返回一个新的Spliterator迭代器
+     * 这是为Spliterator专门设计的方法，区分与普通的Iterator，该方法会把当前元素划分一部分出去创建一个新的Spliterator作为返回，
+     * 两个Spliterator变会并行执行，如果元素个数小到无法划分则返回null
      */
     Spliterator<T> trySplit();
 
@@ -400,7 +415,7 @@ public interface Spliterator<T> {
      *
      * @return the estimated size, or {@code Long.MAX_VALUE} if infinite,
      *         unknown, or too expensive to compute.
-     *         //用于估算还剩下多少个元素需要遍历
+     *         //用于估算还剩下多少个元素需要遍历，该方法返回值并不会对代码正确性产生影响，但是会影响代码的执行线程数
      */
     long estimateSize();
 
@@ -439,7 +454,8 @@ public interface Spliterator<T> {
      * and {@link #CONCURRENT}.
      *
      * @return a representation of characteristics
-     *  //返回当前对象有哪些特征值
+     *  //返回当前对象有哪些特征值，用于可以更好控制和优化Spliterator的使用。
+     *  具体特征值使用可以参考{@link StreamOpFlag}
      */
     int characteristics();
 

@@ -43,7 +43,7 @@ import java.util.function.LongConsumer;
  * not wish to receive any more data (the {@code cancellationRequested()}
  * method), which a source can poll before sending more data to the
  * {@code Sink}.
- *
+ * 定义了流管道中，操作步骤通用抽象。
  * <p>A sink may be in one of two states: an initial state and an active state.
  * It starts out in the initial state; the {@code begin()} method transitions
  * it to the active state, and the {@code end()} method transitions it back into
@@ -124,6 +124,7 @@ interface Sink<T> extends Consumer<T> {
      *
      * <p>Prior to this call, the sink must be in the initial state, and after
      * this call it is in the active state.
+     *
      */
     default void begin(long size) {}
 

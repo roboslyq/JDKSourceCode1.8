@@ -129,6 +129,7 @@ final class ForEachOps {
      * {@code TerminalSink} reference that is an instance of this class.
      *
      * @param <T> the output type of the stream pipeline
+     * ForEach终止操作符实现
      */
     static abstract class ForEachOp<T>
             implements TerminalOp<T, Void>, TerminalSink<T, Void> {
@@ -146,11 +147,15 @@ final class ForEachOps {
         }
 
         @Override
+        //串行递归流中元素:helper为调用终止操作符所在的流（即最后一个流）
+        //spliterator是根据具体的Terminal和对应的Terminal和lambda代码生成的
         public <S> Void evaluateSequential(PipelineHelper<T> helper,
                                            Spliterator<S> spliterator) {
+            //包装成Sink链，然后调用其get()具体的方法
             return helper.wrapAndCopyInto(this, spliterator).get();
         }
 
+        //行行递归流中元素
         @Override
         public <S> Void evaluateParallel(PipelineHelper<T> helper,
                                          Spliterator<S> spliterator) {

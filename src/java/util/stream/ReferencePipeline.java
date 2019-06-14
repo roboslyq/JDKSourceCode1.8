@@ -167,6 +167,7 @@ abstract class ReferencePipeline<P_IN, P_OUT>
             @Override
             Sink<P_OUT> opWrapSink(int flags, Sink<P_OUT> sink) {
                 return new Sink.ChainedReference<P_OUT, P_OUT>(sink) {
+                    //入参sink就是downstream
                     @Override
                     public void begin(long size) {
                         downstream.begin(-1);
@@ -174,6 +175,7 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
                     @Override
                     public void accept(P_OUT u) {
+                        //predicate就是filter入参的表达式。只有当条件符合地，才会将元素转交给下一个Stream处理(downstream.accept(u))
                         if (predicate.test(u))
                             downstream.accept(u);
                     }
@@ -201,9 +203,9 @@ abstract class ReferencePipeline<P_IN, P_OUT>
                 return new Sink.ChainedReference<P_OUT, R>(sink) {
                     @Override
                     public void accept(P_OUT u) {
-                        // 1. 使用当前Sink包装的回调函数mapper处理u
+                        // 1. downstream.accept：将处理结果传递给流水线下游的Sink。
                         downstream.accept(
-                                // 2. 将处理结果传递给流水线下游的Sink
+                                // 2. 使用当前Sink包装的回调函数mapper处理u,即map方法入参的lambda表达式。
                                 mapper.apply(u)
                         );
                     }
@@ -264,6 +266,9 @@ abstract class ReferencePipeline<P_IN, P_OUT>
     }
 
     @Override
+    /**
+     * 扁平化操作：即将{[A,B,C],[D,E],[F,G,E]}形式的流合并成{A,B,C,D,E,F,G,E}形式的流。
+     */
     public final <R> Stream<R> flatMap(Function<? super P_OUT, ? extends Stream<? extends R>> mapper) {
         Objects.requireNonNull(mapper);
         // We can do better than this, by polling cancellationRequested when stream is infinite
@@ -279,6 +284,8 @@ abstract class ReferencePipeline<P_IN, P_OUT>
 
                     @Override
                     public void accept(P_OUT u) {
+                        //mapper.apply(u):即flatmap中的入参，定义了如果将单个元素(流)进行拆分
+                        //result为拆分结果，然后通过forEach遍列结果，实现扁平化处理
                         try (Stream<? extends R> result = mapper.apply(u)) {
                             // We can do better that this too; optimize for depth=0 case and just grab spliterator and forEach it
                             if (result != null)
@@ -428,10 +435,13 @@ abstract class ReferencePipeline<P_IN, P_OUT>
     }
 
     // Terminal operations from Stream
-
+    //终结操作符:forEach的入口方法，
     @Override
     public void forEach(Consumer<? super P_OUT> action) {
-        evaluate(ForEachOps.makeRef(action, false));
+        evaluate(
+                //构造一个TerminalOp,具体实现类为ForEachOp.OfRef
+                ForEachOps.makeRef(action, false)
+        );
     }
 
     @Override

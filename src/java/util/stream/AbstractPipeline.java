@@ -225,16 +225,17 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
      * @param <R> the type of result
      * @param terminalOp the terminal operation to be applied to the pipeline.
      * @return the result
+     * 调用终止操作符来计算pipeline中的数据，进而产生输出结果。
      */
     final <R> R evaluate(TerminalOp<E_OUT, R> terminalOp) {
         assert getOutputShape() == terminalOp.inputShape();
         if (linkedOrConsumed)
             throw new IllegalStateException(MSG_STREAM_LINKED);
         linkedOrConsumed = true;
-
+        //是否并行，
         return isParallel()
-               ? terminalOp.evaluateParallel(this, sourceSpliterator(terminalOp.getOpFlags()))
-               : terminalOp.evaluateSequential(this, sourceSpliterator(terminalOp.getOpFlags()));
+               ? terminalOp.evaluateParallel(this, sourceSpliterator(terminalOp.getOpFlags())) //并行计算,this参数为最后一个具体的Stream实现。
+               : terminalOp.evaluateSequential(this, sourceSpliterator(terminalOp.getOpFlags()));//串行计算,this参数为最后一个具体的Stream实现。
     }
 
     /**
@@ -469,10 +470,21 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
         return StreamOpFlag.SIZED.isKnown(getStreamAndOpFlags()) ? spliterator.getExactSizeIfKnown() : -1;
     }
 
+    /**
+     * 从终止操作符的Sink开始，将整个流调用包装成一个Sink链。
+     * @param sink ：终止操作符所对应的Stream
+     * @param spliterator
+     * @param <P_IN>
+     * @param <S>
+     * @return
+     */
     @Override
     final <P_IN, S extends Sink<E_OUT>> S wrapAndCopyInto(S sink, Spliterator<P_IN> spliterator) {
-        //wrapSink的实现由操作(比如map(),filter(),peek()等)中合作lambda表达式实现。
-        copyInto(wrapSink(Objects.requireNonNull(sink)), spliterator);
+
+        copyInto(
+                //wrapSink的实现由操作(比如map(),filter(),peek()等)中合作lambda表达式实现。
+                wrapSink(Objects.requireNonNull(sink))
+                , spliterator);
         return sink;
     }
 
@@ -521,8 +533,34 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
     final <P_IN> Sink<P_IN> wrapSink(Sink<E_OUT> sink) {
         Objects.requireNonNull(sink);
         //
-        for ( @SuppressWarnings("rawtypes") AbstractPipeline p=AbstractPipeline.this; p.depth > 0; p=p.previousStage) {
-            //p为previousStage,那么传入参数sink为当前
+        for ( @SuppressWarnings("rawtypes")
+              AbstractPipeline p=AbstractPipeline.this; //循环初始值：将当前Pipeline赋值给P,首次是终止操作符所有Pipeline
+              p.depth > 0;                              //循环条件：p的所在深度大于0，表示还有previous存在
+              p=p.previousStage                         //循环值的改变：处理完当前Pipeline后，将p引用之前前一个Pipeline
+                ) {
+            /**
+             * p为previousStage,那么传入参数sink为当前。不同的Pipeline实现，一般都会重写opWrapSink方法。
+             * 比如常见的ReferencePipeline.filter()方法中的StatelessOp就重写了
+             * return new StatelessOp<P_OUT, P_OUT>(this, StreamShape.REFERENCE,
+             *                                      StreamOpFlag.NOT_SIZED) {
+             *             @Override
+             *             Sink<P_OUT> opWrapSink(int flags, Sink<P_OUT> sink) {
+             *                 return new Sink.ChainedReference<P_OUT, P_OUT>(sink) {
+             *                     @Override
+             *                     public void begin(long size) {
+             *                         downstream.begin(-1);
+             *                     }
+             *
+             *                     @Override
+             *                     public void accept(P_OUT u) {
+             *                         if (predicate.test(u))
+             *                             downstream.accept(u);
+             *                     }
+             *                 };
+             *             }
+             *         };
+             */
+
             sink = p.opWrapSink(p.previousStage.combinedFlags, sink);
         }
         return (Sink<P_IN>) sink;

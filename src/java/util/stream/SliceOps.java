@@ -188,6 +188,12 @@ final class SliceOps {
                 }
             }
 
+            /**
+             * Sink包装逻辑
+             * @param flags
+             * @param sink
+             * @return
+             */
             @Override
             Sink<T> opWrapSink(int flags, Sink<T> sink) {
                 return new Sink.ChainedReference<T, T>(sink) {
@@ -201,18 +207,19 @@ final class SliceOps {
 
                     @Override
                     public void accept(T t) {
-                        if (n == 0) {
-                            if (m > 0) {
+                        if (n == 0) {//递减到n = 0，表示所有需要skip的元素已经跳过。
+                            if (m > 0) { // limit递减，控制循环次数。
                                 m--;
                                 downstream.accept(t);
                             }
                         }
                         else {
-                            n--;
+                            n--; //递减跳过数量为skip个元素
                         }
                     }
 
                     @Override
+                    //如果m==0，表示已经达到limit限制，需要终止当前流计算。
                     public boolean cancellationRequested() {
                         return m == 0 || downstream.cancellationRequested();
                     }

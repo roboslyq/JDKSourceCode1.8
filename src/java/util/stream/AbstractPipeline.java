@@ -33,6 +33,7 @@ import java.util.function.Supplier;
  * Abstract base class for "pipeline" classes, which are the core
  * implementations of the Stream interface and its primitive specializations.
  * Manages construction and evaluation of stream pipelines.
+ * “管道”类的抽象基类，它们是Stream接口的核心实现,并且扩展了特有的相关功能:对于流的构建和求值。
  *
  * <p>An {@code AbstractPipeline} represents an initial portion of a stream
  * pipeline, encapsulating a stream source and zero or more intermediate

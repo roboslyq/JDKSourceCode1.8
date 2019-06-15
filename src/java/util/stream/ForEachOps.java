@@ -152,6 +152,7 @@ final class ForEachOps {
         public <S> Void evaluateSequential(PipelineHelper<T> helper,
                                            Spliterator<S> spliterator) {
             //包装成Sink链，然后调用其get()具体的方法,this指最后的终止操作符创建的Terminal的ForEachOp对象。
+            //this指终止操作符new出来的TerminalOp相关对象
             return helper.wrapAndCopyInto(this, spliterator).get();
         }
 

@@ -473,7 +473,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
 
     /**
      * 从终止操作符的Sink开始，将整个流调用包装成一个Sink链。
-     * @param sink ：终止操作符所对应的Stream
+     * @param sink ：终止操作符new出来的TerminalOp对象
      * @param spliterator
      * @param <P_IN>
      * @param <S>
@@ -528,8 +528,12 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
     @Override
     @SuppressWarnings("unchecked")
     /**
-     * 将已经拥有previous stage的单向sink链构造成拥有next stage的新链。
-     * 只有通用接口Sink,不同stage之间才知道需要调用的操作。
+     * 1、将已经拥有previous stage的单向sink链构造成拥有next stage的新链。
+     * 2、只有通用接口Sink,不同stage之间才知道需要调用的操作。
+     * 3、第一次循环时，sink为终止操作符所在Pipeline 使用new方法创建出来的sink。也是sink链中最后一个sink。
+     * 4、最终的链形式如下：
+     * stage_head <------stage_1<------stage_2<------ stage_3<------stage_4------stage_5
+     *                    sink1_1 ------>sink2 ------> sink3  ------> sink4 ------> sink5
      */
     final <P_IN> Sink<P_IN> wrapSink(Sink<E_OUT> sink) {
         Objects.requireNonNull(sink);

@@ -151,7 +151,7 @@ final class ForEachOps {
         //spliterator是根据具体的Terminal和对应的Terminal和lambda代码生成的
         public <S> Void evaluateSequential(PipelineHelper<T> helper,
                                            Spliterator<S> spliterator) {
-            //包装成Sink链，然后调用其get()具体的方法
+            //包装成Sink链，然后调用其get()具体的方法,this指最后的终止操作符创建的Terminal的ForEachOp对象。
             return helper.wrapAndCopyInto(this, spliterator).get();
         }
 

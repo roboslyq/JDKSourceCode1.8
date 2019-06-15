@@ -551,7 +551,6 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
              *                     public void begin(long size) {
              *                         downstream.begin(-1);
              *                     }
-             *
              *                     @Override
              *                     public void accept(P_OUT u) {
              *                         if (predicate.test(u))

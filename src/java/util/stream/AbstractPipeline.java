@@ -78,6 +78,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
     /**
      * Backlink to the head of the pipeline chain (self if this is the source
      * stage).
+     * pipeline的Head（即数据源所在处）
      */
     @SuppressWarnings("rawtypes")
     private final AbstractPipeline sourceStage;
@@ -312,6 +313,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
 
     @Override
     @SuppressWarnings("unchecked")
+    /**将普通的流转换成并行流:仅仅将sourceStage的标识改为true**/
     public final S parallel() {
         sourceStage.parallel = true;
         return (S) this;
@@ -394,6 +396,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
      * stateful parallel pipeline, this is a spliterator describing the results
      * of all computations up to and including the most recent stateful
      * operation.
+     * 从head stage中获取元素遍历器
      */
     @SuppressWarnings("unchecked")
     private Spliterator<?> sourceSpliterator(int terminalFlags) {
@@ -419,7 +422,7 @@ abstract class AbstractPipeline<E_IN, E_OUT, S extends BaseStream<E_OUT, S>>
             for (@SuppressWarnings("rawtypes") AbstractPipeline u = sourceStage, p = sourceStage.nextStage, e = this;
                  u != e;
                  u = p, p = p.nextStage) {
-
+                //
                 int thisOpFlags = p.sourceOrOpFlags;
                 if (p.opIsStateful()) {
                     depth = 0;

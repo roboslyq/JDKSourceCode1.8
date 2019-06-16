@@ -257,12 +257,20 @@ final class ForEachOps {
 
     /** A {@code ForkJoinTask} for performing a parallel for-each operation */
     @SuppressWarnings("serial")
+    /**
+     *
+     */
     static final class ForEachTask<S, T> extends CountedCompleter<Void> {
         private Spliterator<S> spliterator;
         private final Sink<S> sink;
         private final PipelineHelper<T> helper;
         private long targetSize;
 
+        /**
+         * @param helper  Terminal操作所在Pipeline
+         * @param spliterator  Terminal操作所在spliterator
+         * @param sink 通过helper已经包装好的Sink链
+         */
         ForEachTask(PipelineHelper<T> helper,
                     Spliterator<S> spliterator,
                     Sink<S> sink) {
@@ -283,15 +291,21 @@ final class ForEachOps {
 
         // Similar to AbstractTask but doesn't need to track child tasks
         public void compute() {
+            //流迭代器
             Spliterator<S> rightSplit = spliterator, leftSplit;
+            //预估大小，对任务拆分有影响
             long sizeEstimate = rightSplit.estimateSize(), sizeThreshold;
+            //
             if ((sizeThreshold = targetSize) == 0L)
                 targetSize = sizeThreshold = AbstractTask.suggestTargetSize(sizeEstimate);
+            //是否是有界的递归（即数据源是否是有限的）
             boolean isShortCircuit = StreamOpFlag.SHORT_CIRCUIT.isKnown(helper.getStreamAndOpFlags());
+            //是否
             boolean forkRight = false;
             Sink<S> taskSink = sink;
             ForEachTask<S, T> task = this;
             while (!isShortCircuit || !taskSink.cancellationRequested()) {
+                //任务
                 if (sizeEstimate <= sizeThreshold ||
                     (leftSplit = rightSplit.trySplit()) == null) {
                     task.helper.copyInto(taskSink, rightSplit);

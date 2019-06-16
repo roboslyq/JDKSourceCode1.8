@@ -53,6 +53,15 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.lang.reflect.Constructor;
 
 /**
+ *
+ * ForkJoinTask 实现了 Future 接口，说明它也是一个可取消的异步运算任务，实际上ForkJoinTask 是 Future 的轻量级实现，
+ *  主要用在纯粹是计算的函数式任务或者操作完全独立的对象计算任务。
+ *  fork 是主运行方法，用于异步执行；
+ *  而 join 方法在任务结果计算完毕之后才会运行，用来合并或返回计算结果。
+ *  其内部类都比较简单，ExceptionNode 是用于存储任务执行期间的异常信息的单向链表；
+ *  其余四个类是为 Runnable/Callable 任务提供的适配器类，用于把 Runnable/Callable 转化为 ForkJoinTask 类型的任务
+ *  （因为 ForkJoinPool 只可以运行 ForkJoinTask 类型的任务）。
+ *
  * 整个流程和重要方法归纳如下：
  * 1、任务提交
  *
@@ -293,13 +302,14 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
 
     /** The run status of this task */
-    volatile int status; // accessed directly by pool and workers
-    static final int DONE_MASK   = 0xf0000000;  // mask out non-completion bits
+    /** 任务运行状态 */
+    volatile int status; // accessed directly by pool and workers // 任务运行状态
+    static final int DONE_MASK   = 0xf0000000;  // mask out non-completion bits // 任务完成状态标志位
     static final int NORMAL      = 0xf0000000;  // must be negative
     static final int CANCELLED   = 0xc0000000;  // must be < NORMAL
     static final int EXCEPTIONAL = 0x80000000;  // must be < CANCELLED
-    static final int SIGNAL      = 0x00010000;  // must be >= 1 << 16
-    static final int SMASK       = 0x0000ffff;  // short bits for tags
+    static final int SIGNAL      = 0x00010000;  // must be >= 1 << 16  等待信号
+    static final int SMASK       = 0x0000ffff;  // short bits for tags  低位掩码
 
     /**
      * Marks completion and wakes up threads waiting to join this

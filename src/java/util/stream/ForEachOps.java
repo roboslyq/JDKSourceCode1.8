@@ -156,13 +156,13 @@ final class ForEachOps {
             return helper.wrapAndCopyInto(this, spliterator).get();
         }
 
-        //行行递归流中元素
+        //并行递归流中元素
         @Override
         public <S> Void evaluateParallel(PipelineHelper<T> helper,
                                          Spliterator<S> spliterator) {
-            if (ordered)
+            if (ordered) //有序
                 new ForEachOrderedTask<>(helper, spliterator, this).invoke();
-            else
+            else//无序
                 new ForEachTask<>(helper, spliterator, helper.wrapSink(this)).invoke();
             return null;
         }

@@ -53,6 +53,51 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.lang.reflect.Constructor;
 
 /**
+ * 整个流程和重要方法归纳如下：
+ * 1、任务提交
+ *
+ * 提交任务入口：submit,execute,invoke
+ * 完整版提交任务：externalSubmit(包括初始化)
+ * 简单版提交任务：externalPush
+ *
+ * 2、worker管理
+ *
+ * 激活或创建：signalWork
+ * 创建：tryAddWorker,createWorker
+ * 注册、撤销注册：registerWorker,deregisterWorker
+ *
+ *3、 worker执行(runWorker三部曲)
+ *
+ * 获取：scan
+ * 执行：runTask
+ * 等待：awaitWork
+ *
+ * 4、Fork
+ *
+ * 等同于提交任务
+ *
+ * 5、Join(doJoin)
+ *
+ * 当前不是worker：externalAwaitDone
+ * 当前是worker：awaitJoin
+ *
+ * 6、awaitJoin等待两种策略
+ *
+ * Helping：tryRemoveAndExec、helpStealer
+ * Compensating：tryCompensate
+ *
+ * 7、等待所有任务完成
+ *
+ * 静止：awaitQuiescence
+ * 终止：awaitTermination
+ *
+ * 8、关闭
+ *
+ * shutdown,shutdownNow
+ * tryTerminate
+ *
+ * 异常处理
+ *
  * Abstract base class for tasks that run within a {@link ForkJoinPool}.
  * A {@code ForkJoinTask} is a thread-like entity that is much
  * lighter weight than a normal thread.  Huge numbers of tasks and

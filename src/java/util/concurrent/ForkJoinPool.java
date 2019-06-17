@@ -695,7 +695,7 @@ public class ForkJoinPool extends AbstractExecutorService {
     /**
      * If there is a security manager, makes sure caller has
      * permission to modify threads.
-     * JDL安全检查
+     * JDK安全检查
      */
     private static void checkPermission() {
         SecurityManager security = System.getSecurityManager();

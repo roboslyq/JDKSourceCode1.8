@@ -34,7 +34,7 @@ import java.util.function.LongConsumer;
 /**
  * An immutable container for describing an ordered sequence of elements of some
  * type {@code T}.
- *
+ * Node是一个稳定的容器，用来表示一系有序的元素T。
  * <p>A {@code Node} contains a fixed number of elements, which can be accessed
  * via the {@link #count}, {@link #spliterator}, {@link #forEach},
  * {@link #asArray}, or {@link #copyInto} methods.  A {@code Node} may have zero
@@ -43,6 +43,8 @@ import java.util.function.LongConsumer;
  * </em> or a <em>leaf</em>; if it has children, it is considered an
  * <em>internal</em> node.  The size of an internal node is the sum of sizes of
  * its children.
+ * 一个Node包含固定数量的元素，这些元素可以被 统计，分割，循环遍列，转换为数据，和复制等操作。
+ * Node可以拥有一个或者多个子Node。
  *
  * @apiNote
  * <p>A {@code Node} typically does not store the elements directly, but instead

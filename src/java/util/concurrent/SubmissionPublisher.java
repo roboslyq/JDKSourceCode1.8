@@ -53,7 +53,9 @@ import java.util.function.Consumer;
  * href="http://www.reactive-streams.org/"> reactive-streams</a>
  * Publishers relying on drop handling and/or blocking for flow
  * control.
- * 一个发布者默认实现。
+ * 1、一个发布者默认实现。使用异步的方式将非空元素发布到当前的订阅者，直接关闭。
+ * 2、当前的每个订阅是按顺序收到新元素的，除非抛出异常或者有订阅者被移除。
+ * 3、使用SubmissionPublisher生产的元素兼容reactive-stream，发布者通过移除或者添加bloking 来实现流控制。
  *
  * <p>A SubmissionPublisher uses the {@link Executor} supplied in its
  * constructor for delivery to subscribers. The best choice of
@@ -62,6 +64,10 @@ import java.util.function.Consumer;
  * subscribers can be estimated, consider using a {@link
  * Executors#newFixedThreadPool}. Otherwise consider using the
  * default, normally the {@link ForkJoinPool#commonPool}.
+ *
+ * SubmissionPublisher通过构造函数传入的Executor参数来发送数据到订阅。
+ * 根据不同的场景选择不同的Executor。如果可以预估订阅者和消息的数量，建议使用newFixedThreadPool。
+ * 否则最好使用默认的ForkJoinPool#commonPool
  *
  * <p>Buffering allows producers and consumers to transiently operate
  * at different rates.  Each subscriber uses an independent buffer.
@@ -74,6 +80,10 @@ import java.util.function.Consumer;
  * the maximum capacity.  The default value of {@link
  * Flow#defaultBufferSize()} may provide a useful starting point for
  * choosing a capacity based on expected rates, resources, and usages.
+ * 1、缓冲允许生产者与消费者短期内不相同的频率工作。
+ * 2、每个订阅者都有一个独立的缓冲区。
+ * 3、每个缓冲在第一次使用时创建，创建时需要指定缓冲区最大值（2的整数倍扩容直到设定的最大值）
+ * 4、 Flow.Subscription#request(long) 方法入参long不会直接影响吸入口区的扩容
  *
  * <p>Publication methods support different policies about what to do
  * when buffers are saturated. Method {@link #submit(Object) submit}

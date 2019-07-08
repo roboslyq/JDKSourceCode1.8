@@ -76,6 +76,9 @@ interface TerminalOp<E_IN, R> {
      * @param helper the pipeline helper
      * @param spliterator the source spliterator
      * @return the result of the evaluation
+     * 使用具体特殊的PipelineHelper高性能的并行的完成相关操作(终止操作符)的计算。
+     * 注意：默认的实现是串行的实现（直接调用串行方法 evaluateSequential(helper, spliterator)，
+     *      具体的并行操作由具体的子类实现。例如：{@link ForEachOps.ForEachOp }
      */
     default <P_IN> R evaluateParallel(PipelineHelper<E_IN> helper,
                                       Spliterator<P_IN> spliterator) {

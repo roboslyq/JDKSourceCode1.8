@@ -38,6 +38,7 @@ package java.util.concurrent;
 /**
  * A {@link ForkJoinTask} with a completion action performed when
  * triggered and there are no remaining pending actions.
+ * CountedCompleter是一个特殊的ForkJoinTask,它会在触发完成动作时,检查有没有挂起action,若没有则执行一个完成动作。
  * CountedCompleters are in general more robust in the
  * presence of subtask stalls and blockage than are other forms of
  * ForkJoinTasks, but are less intuitive to program.  Uses of
@@ -412,14 +413,16 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     private static final long serialVersionUID = 5232453752276485070L;
 
     /** This task's completer, or null if none */
+    /** 任务的完成者(全局的栈结构)*/
     final CountedCompleter<?> completer;
     /** The number of pending tasks until completion */
-    volatile int pending;
+    /** 代表完成前挂起的任务数量（重要字段）,用volatile修饰 */
+     volatile int pending;
 
     /**
      * Creates a new CountedCompleter with the given completer
      * and initial pending count.
-     *
+     * 带有completer和挂起数量的构造器.
      * @param completer this task's completer, or {@code null} if none
      * @param initialPendingCount the initial pending count
      */
@@ -432,7 +435,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     /**
      * Creates a new CountedCompleter with the given completer
      * and an initial pending count of zero.
-     *
+     * 带有completer的构造器 .
      * @param completer this task's completer, or {@code null} if none
      */
     protected CountedCompleter(CountedCompleter<?> completer) {
@@ -442,6 +445,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     /**
      * Creates a new CountedCompleter with no completer
      * and an initial pending count of zero.
+     * 默认构造器.completer为空.
      */
     protected CountedCompleter() {
         this.completer = null;
@@ -449,6 +453,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
 
     /**
      * The main computation performed by this task.
+     * 当前任务的主要的核心计算方法！！！
      */
     public abstract void compute();
 
@@ -463,6 +468,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      *
      * @param caller the task invoking this method (which may
      * be this task itself)
+     * 任务正常完成时触发的回调事件
      */
     public void onCompletion(CountedCompleter<?> caller) {
     }
@@ -484,6 +490,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * be this task itself)
      * @return {@code true} if this exception should be propagated to this
      * task's completer, if one exists
+     * 任务异常时回调事件
      */
     public boolean onExceptionalCompletion(Throwable ex, CountedCompleter<?> caller) {
         return true;
@@ -512,6 +519,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * Sets the pending count to the given value.
      *
      * @param count the count
+     * 设置挂起任务数量
      */
     public final void setPendingCount(int count) {
         pending = count;
@@ -521,6 +529,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * Adds (atomically) the given value to the pending count.
      *
      * @param delta the value to add
+     * 原子地为挂起任务数量添加delta
      */
     public final void addToPendingCount(int delta) {
         U.getAndAddInt(this, PENDING, delta);
@@ -533,6 +542,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * @param expected the expected value
      * @param count the new value
      * @return {@code true} if successful
+     *   原子地将当前挂起任务数量从expected更改到count
      */
     public final boolean compareAndSetPendingCount(int expected, int count) {
         return U.compareAndSwapInt(this, PENDING, expected, count);
@@ -540,9 +550,10 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
 
     /**
      * If the pending count is nonzero, (atomically) decrements it.
-     *
+     * 如果当前挂起任务不为0，则自己的递减直到0.
      * @return the initial (undecremented) pending count holding on entry
      * to this method
+     * 将当前任务的挂起数量原子减至0.
      */
     public final int decrementPendingCountUnlessZero() {
         int c;
@@ -556,6 +567,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * task if it has no completer, else its completer's root.
      *
      * @return the root of the current computation
+     * 返回root completer.逻辑很简单.
      */
     public final CountedCompleter<?> getRoot() {
         CountedCompleter<?> a = this, p;
@@ -569,17 +581,29 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * otherwise invokes {@link #onCompletion(CountedCompleter)}
      * and then similarly tries to complete this task's completer,
      * if one exists, else marks this task as complete.
+     * 尝试完成根任务或减少栈链下游的某一个completer的挂起数(包含它自身).
      */
     public final void tryComplete() {
+        //1.初始用a保存this,后续为当前操作任务,用s保存a.
         CountedCompleter<?> a = this, s = a;
         for (int c;;) {
+            //2.第一次进入或在6造成竞态的某一次循环中,a(this或this的completer链中的某一个)的的挂起任务数为0,代表它挂起的任务都完成了.
             if ((c = a.pending) == 0) {
+                //3.a的勾子方法,若已经运行过4,且判断条件为假未能到5并在下一次循环重新回到3的情况,a!=s且a是s的completer,
+                //在对onCompletion重写时,可以根据this与参数是否相等进行判断,如并行流聚合时可以根据这个条件进行结果集的合并.
                 a.onCompletion(s);
+                //4.将a指向自己的completer,s指向原来的a.
                 if ((a = (s = a).completer) == null) {
+                    //5.原来a的completer不存在,即a不是root,不需要再传递了,让root进行quietlyComplete并返回.
+                    //此时说明整条链上的competer挂起任务全部是0.
                     s.quietlyComplete();
                     return;
                 }
+                //隐藏的7.当原a的completer存在(a不是root)的情况,继续对该complter判断挂起任务数或尝试减1,对下一个元素开启下一轮循环.
             }
+            //6.对this的completer栈的某一次循环时发现了挂起任务数不为0的,则对该completer的挂起数减1,
+            //表示它挂起的任务完成了一个,并返回.若在此时恰好出现了竞态,另一条链上的任务抢先减一,则当前
+            //的a要进入下一循环,它可能会在2处判断通过,进入到链上的下一个completer的传播逻辑.
             else if (U.compareAndSwapInt(a, PENDING, c, c - 1))
                 return;
         }
@@ -593,6 +617,9 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * one exists, else marks this task as complete. This method may be
      * useful in cases where {@code onCompletion} should not, or need
      * not, be invoked for each completer in a computation.
+     * propagate：意为传播，繁殖。
+     * 此处为发送所有的completer事件。基本等效于tryComplete,只是不执行onCompletion,tryComplete会在判断链上某个
+     * completer的挂起任务数是0立即执行onCompletion.
      */
     public final void propagateCompletion() {
         CountedCompleter<?> a = this, s = a;
@@ -626,13 +653,16 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * more simply using {@code quietlyCompleteRoot();}.
      *
      * @param rawResult the raw result
+     *  omplete方法,逻辑简单,丝毫不考虑挂起数,直接执行当前task的几个完成方法,并尝试对completer进行tryComplete.
+     *  它不改变自己的挂起任务数,但会让completer对栈上的其他completer或自身尝试减少挂起数或完成root.
      */
     public void complete(T rawResult) {
         CountedCompleter<?> p;
-        setRawResult(rawResult);
-        onCompletion(this);
-        quietlyComplete();
+        setRawResult(rawResult);//使用参数设置为当前任务的结果,尽管它为空方法.
+        onCompletion(this);//直接调用onCompletion勾子.
+        quietlyComplete();//安静地将status置为NORMAL.
         if ((p = completer) != null)
+            //自己不改变自身挂起数,也不尝试完成root,但让completer尝试去向下执行这些操作.
             p.tryComplete();
     }
 
@@ -643,12 +673,15 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * #nextComplete} in completion traversal loops.
      *
      * @return this task, if pending count was zero, else {@code null}
+     * 和nextComplete放置在循环中使用.
      */
     public final CountedCompleter<?> firstComplete() {
         for (int c;;) {
             if ((c = pending) == 0)
+                //1.当前task没有挂起任务数,则返回它.
                 return this;
             else if (U.compareAndSwapInt(this, PENDING, c, c - 1))
+                //2.否则尝试减少一个挂起任务数并返回null.但当出现竞态时,可能导致未能进入2而在下一次循环进入1.
                 return null;
         }
     }
@@ -669,12 +702,19 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * }}</pre>
      *
      * @return the completer, or {@code null} if none
+     *
      */
+    //结合前面的firstComplete互相理解,它会对当前任务判断是否有completer,有则对该completer进行firstComplete,
+    //否则将当前任务安静完成并返回null.
+    //故结果只能返回null或completer
     public final CountedCompleter<?> nextComplete() {
         CountedCompleter<?> p;
         if ((p = completer) != null)
+            //有completer且completer已无挂起任务数,则返回completer,
+            //有completer且completer有挂起任务数,则尝试对该任务数减一并返回null.出现竞态则可能返回该completer.
             return p.firstComplete();
         else {
+            //无completer,安静完成当前任务并返回null.
             quietlyComplete();
             return null;
         }
@@ -682,6 +722,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
 
     /**
      * Equivalent to {@code getRoot().quietlyComplete()}.
+     * 等同于getRoot().quietlyComplete()
      */
     public final void quietlyCompleteRoot() {
         for (CountedCompleter<?> a = this, p;;) {
@@ -701,14 +742,18 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * @param maxTasks the maximum number of tasks to process.  If
      *                 less than or equal to zero, then no tasks are
      *                 processed.
+     * 如果当前任务未完成,尝试去出栈执行,并处理至多给定数量的其他未处理任务,且对这些未处理任务
+     * 来说,当前任务处于它们的完成路径上(即这些任务是completer栈链的前置任务),实现特殊的工作窃取.
      */
     public final void helpComplete(int maxTasks) {
         Thread t; ForkJoinWorkerThread wt;
         if (maxTasks > 0 && status >= 0) {
             if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
+                //当前线程是ForkJoinWorkerThread,尝试执行当前任务并尝试从线程的工作队列中尝试帮助前置任务执行.
                 (wt = (ForkJoinWorkerThread)t).pool.
                     helpComplete(wt.workQueue, this, maxTasks);
             else
+                //使用common池的externalHelpComplete方法.
                 ForkJoinPool.common.externalHelpComplete(this, maxTasks);
         }
     }
@@ -728,6 +773,9 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * Implements execution conventions for CountedCompleters.
      */
     protected final boolean exec() {
+        //直接调用compute方法并返回false.回到ForkJoinTask类中的doExec方法,可以看到
+        //调用了exec后若得到true值,将会执行setCompletion(NORMAL)动作.且该动作将在首次唤醒等待结果的线程.
+        //此处return了false,将不去执行上述操作
         compute();
         return false;
     }
@@ -741,6 +789,8 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      *
      * @return the result of the computation
      */
+    //重写自ForkJoinTask的结果（注：CountedCompleter也不维护result,返回null）.
+    //但并行流或者一些其他并行操作可以实现此结果,比如ConcurrentHashMap中支持的map reduce操作.
     public T getRawResult() { return null; }
 
     /**
@@ -750,6 +800,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * overridden to update existing objects or fields, then it must
      * in general be defined to be thread-safe.
      */
+    //同上,默认空,一些子类会有特别的实现.
     protected void setRawResult(T t) { }
 
     // Unsafe mechanics

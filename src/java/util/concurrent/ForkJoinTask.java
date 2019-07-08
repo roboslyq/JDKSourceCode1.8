@@ -254,6 +254,7 @@ import java.lang.reflect.Constructor;
  * <p>This class provides {@code adapt} methods for {@link Runnable}
  * and {@link Callable}, that may be of use when mixing execution of
  * {@code ForkJoinTasks} with other kinds of tasks. When all tasks are
+ * {@code ForkJoinTasks} with other kinds of tasks. When all tasks are
  * of this form, consider using a pool constructed in <em>asyncMode</em>.
  *
  * <p>ForkJoinTasks are {@code Serializable}, which enables them to be
@@ -304,11 +305,13 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
 
     /** The run status of this task */
-    /** 任务运行状态
-     * 1、DONE_MASK最高4位为1，可以通过与运算屏蔽除后4位的所有位。
-     * 2、最终状态NORMAL，CANCELLED,EXCEPTIONAL状态均为负数，即最高4位不会为0。而剩下的SIGNAL和SMASK高32均为0
-     * 3、0xf = 1111   0xc = 1100    0x8 = 1000，可能通过一个状态什s，通过和DONE_MASK进行与位运算，得到NORMAL，EXCEPTIONAL，CANCELLED三种状态之一
-     * 2、DONE_MASK通过与位运算，能够过滤掉所有非NORMAL,非CANCELLED,非EXCEPTIONAL的状态 */
+    /**
+     *  一、 任务运行状态
+     *      1、DONE_MASK最高4位为1，可以通过与运算屏蔽除后4位的所有位。
+     *      2、最终状态NORMAL，CANCELLED,EXCEPTIONAL状态均为负数，即最高4位不会为0。而剩下的SIGNAL和SMASK高32均为0
+     *      3、0xf = 1111   0xc = 1100    0x8 = 1000，可能通过一个状态什s，通过和DONE_MASK进行与位运算，得到NORMAL，EXCEPTIONAL，CANCELLED三种状态之一
+     *      4、DONE_MASK通过与位运算，能够过滤掉所有非NORMAL,非CANCELLED,非EXCEPTIONAL的状态
+     * */
 
     volatile int status; // accessed directly by pool and workers // 任务运行状态
     static final int DONE_MASK   = 0xf0000000;  // mask out non-completion bits // （遮掩未完成的标识）任务完成状态标志位

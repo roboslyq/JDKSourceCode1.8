@@ -1401,12 +1401,20 @@ public class ForkJoinPool extends AbstractExecutorService {
      * using getAndAddLong of AC_UNIT, rather than CAS, when returning
      * from a blocked join.  Other updates entail multiple subfields
      * and masking, requiring CAS.
-     * 说明： ForkJoinPool 的内部状态都是通过一个64位的 long 型 变量ctl来存储，它由四个16位的子域组成：
-        AC：正在运行工作线程数减去目标并行度，高16位
-        TC：总工作线程数减去目标并行度，中高16位
-        SS：栈顶等待线程的版本计数和状态，中低16位
-        ID： 栈顶 WorkQueue 在池中的索引（poolIndex），低16位
-        在后面的源码解析中，某些地方也提取了ctl的低32位（sp=(int)ctl）来检查工作线程状态，例如，当sp不为0时说明当前还有空闲工作线程。
+     * ForkJoinPool的总控制信息，包含在一个long里面：
+     *      AC: 表示当前活动的工作线程的数量减去并行度得到的数值。(16 bits)
+     *      TC: 表示全部工作线程的数量减去并行度得到的数值。(16bits)
+     *      ST: 表示当前ForkJoinPool是否正在关闭。(1 bit)
+     *      EC: 表示Treiber stack顶端的等待工作线程的等待次数。(15 bits)
+     *      ID: Treiber stack顶端的等待工作线程的下标取反(16 bits)
+     *
+     * 1111111111111111 1111111111111111  1  111111111111111 1111111111111111
+     * AC               TC                ST EC              ID
+     *
+     *      如果AC为负数，说明没有足够的活动工作线程。
+     *      如果TC为负数，说明工作线程数量没达到最大工作线程数量。
+     *      如果ID为负数，说明至少有一个等待的工作线程。
+     *      如果(int)ctl为负数，说明ForkJoinPool正在关闭。
      */
     //================ForkJoinPool 中的相关常量和实例字段
 
@@ -1442,7 +1450,15 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     // Instance fields
     // 实例字段
-
+    /**
+     *  ctl是ForkJoinPool中最重要的，也是设计最精密的域，它是整个ForkJoinPool的总控信息。所有信息包含在一个long(64bit)中，这些信息包括：
+     *      当前活动的工作线程数量
+     *      当前总的工作线程数量
+     *      ForkJoinPool的关闭标志
+     *      在Treiber stack(由全部等待工作线程组成的一个链)顶端等待的工作线程的等待次数
+     *      Treiber stack(由全部等待工作线程组成的一个链)顶端等待的工作线程的ID信息(工作线程的下标取反)。
+     *  ctl还有一个相对不重要的作用就是，某些非volatile域会依赖ctl来保证可见性。
+     */
     volatile long ctl;                   // main pool control // 主控制参数
     volatile int runState;               // lockable status // 运行状态锁
     final int config;                    // parallelism, mode // 并行度|模式

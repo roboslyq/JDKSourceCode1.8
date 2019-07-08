@@ -162,6 +162,14 @@ import java.security.Permissions;
  * <p>This implementation rejects submitted tasks (that is, by throwing
  * {@link RejectedExecutionException}) only when the pool is shut down
  * or internal resources have been exhausted.
+ * 一、任务分类：
+ * ForkJoinPool 中的任务分为两种：
+ *      一种是本地提交的任务（Submission task，如 execute、submit 提交的任务）；
+ *      另外一种是 fork 出的子任务（Worker task）。
+ * 两种任务都会存放在 WorkQueue 数组中，但是这两种任务并不会混合在同一个队列里，ForkJoinPool 内部使用了一种随机哈希算法
+ * （有点类似 ConcurrentHashMap 的桶随机算法）将工作队列与对应的工作线程关联起来，
+ * Submission 任务存放在 WorkQueue 数组的偶数索引位置，Worker 任务存放在奇数索引位。实质上，Submission 与 Worker 一样，
+ * 只不过他它们被限制只能执行它们提交的本地任务，在后面的源码解析中，我们统一称之为“Worker”。
  *
  * @since 1.7
  * @author Doug Lea
@@ -2393,7 +2401,9 @@ public class ForkJoinPool extends AbstractExecutorService {
             r = ThreadLocalRandom.getProbe();
         }
         for (;;) {
-            WorkQueue[] ws; WorkQueue q; int rs, m, k;
+            WorkQueue[] ws;
+            WorkQueue q;
+            int rs, m, k;
             boolean move = false;
             if ((rs = runState) < 0) {// 池已关闭
                 tryTerminate(false, false);     // help terminate
@@ -2481,7 +2491,9 @@ public class ForkJoinPool extends AbstractExecutorService {
      *             （防止在externalSubmit初始化时发生异常导致工作线程创建失败）。
      */
     final void externalPush(ForkJoinTask<?> task) {
-        WorkQueue[] ws; WorkQueue q; int m;
+        WorkQueue[] ws;
+        WorkQueue q;
+        int m;
         int r = ThreadLocalRandom.getProbe(); //探针值，用于计算WorkQueue槽位索引
         int rs = runState;
         if ((ws = workQueues) != null && (m = (ws.length - 1)) >= 0 &&
@@ -2565,8 +2577,11 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         the caller is not permitted to modify threads
      *         because it does not hold {@link
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
+     *  ForkJoin的默认构造函数
      */
     public ForkJoinPool() {
+        //通过Math.min取MAX_CAP和Runtime.getRuntime().availableProcessors()较小值。
+        //一般情况值为后者，即CPU内核数
         this(Math.min(MAX_CAP, Runtime.getRuntime().availableProcessors()),
              defaultForkJoinWorkerThreadFactory, null, false);
     }
@@ -2619,10 +2634,11 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         because it does not hold {@link
      *         java.lang.RuntimePermission}{@code ("modifyThread")}
      */
-    public ForkJoinPool(int parallelism,
+    public ForkJoinPool(int parallelism,        //工作线程最大值
                         ForkJoinWorkerThreadFactory factory,
                         UncaughtExceptionHandler handler,
-                        boolean asyncMode) {
+                        boolean asyncMode //默认false
+    ) {
         this(checkParallelism(parallelism),
              checkFactory(factory),
              handler,
@@ -2648,6 +2664,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * Creates a {@code ForkJoinPool} with the given parameters, without
      * any security checks or parameter validation.  Invoked directly by
      * makeCommonPool.
+     *构造函数之一
      */
     private ForkJoinPool(int parallelism,
                          ForkJoinWorkerThreadFactory factory,
@@ -2740,7 +2757,7 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     /**
      * Submits a ForkJoinTask for execution.
-     *
+     * 提交一个ForkJoinTask，然后执行
      * @param task the task to submit
      * @param <T> the type of the task's result
      * @return the task
@@ -2751,6 +2768,7 @@ public class ForkJoinPool extends AbstractExecutorService {
     public <T> ForkJoinTask<T> submit(ForkJoinTask<T> task) {
         if (task == null)
             throw new NullPointerException();
+        //添加给定任务到submission队列中
         externalPush(task);
         return task;
     }

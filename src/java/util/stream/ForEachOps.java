@@ -295,7 +295,7 @@ final class ForEachOps {
             Spliterator<S> rightSplit = spliterator, leftSplit;
             //预估大小，对任务拆分有影响
             long sizeEstimate = rightSplit.estimateSize(), sizeThreshold;
-            //
+            //如果没有建议任务大小，则通过AbstractTask.suggestTargetSize进行任务大小试算
             if ((sizeThreshold = targetSize) == 0L)
                 targetSize = sizeThreshold = AbstractTask.suggestTargetSize(sizeEstimate);
             //是否是有界的递归（即数据源是否是有限的）

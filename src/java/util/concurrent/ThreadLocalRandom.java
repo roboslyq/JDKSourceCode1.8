@@ -78,6 +78,17 @@ import java.util.stream.StreamSupport;
  *
  * @since 1.7
  * @author Doug Lea
+ *
+ * 一、常用的Random在并发下，多个线程同时计算种子需要用到同一个原子变量。由于更新操作使用CAS，同时执行只有一个线程成功，其他线程的大量自旋造成性能损失，
+ * ThreadLocalRandom继承Random，对此进行了改进。顾名思义，ThreadLocalRandom运用了ThreadLocal，每个线程内部维护一个种子变量，
+ * 多线程下计算新种子时使用线程自己的种子变量进行更新，避免了竞争。
+ *
+ * 二、Thread为ThreadLocalRandom新增了三个变量：
+ *
+ *      threadLocalRandomSeed
+ *      threadLocalRandomProbe
+ *      threadLocalRandomSecondarySeed
+ *  每个线程默认的probe是0，当线程调用ThreadLocalRandom.current时，会初始化seed和probe，维护在线程内部。
  */
 public class ThreadLocalRandom extends Random {
     /*
@@ -123,6 +134,7 @@ public class ThreadLocalRandom extends Random {
      * pair of them. As is true for the base class version of this
      * method, this time/space tradeoff is probably never worthwhile,
      * but we provide identical statistical properties.
+     *
      */
 
     /** Generates per-thread initialization/probe field */

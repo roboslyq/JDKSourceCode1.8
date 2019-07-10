@@ -762,6 +762,7 @@ public class ForkJoinPool extends AbstractExecutorService {
     // ForkJoinPool线程池和WorkQueue工作队列 共享常量参数配置表
 
     // Bounds：边界值（最大或者最小）
+    // SMASK = 0xffff =  0b11111111_11111111 = 2的16次方
     static final int SMASK        = 0xffff;        // short bits == max index //  低位掩码，也是最大索引位
     static final int MAX_CAP      = 0x7fff;        // max #workers - 1  //  工作线程最大容量
     static final int EVENMASK     = 0xfffe;        // even short bits    //  偶数低位掩码
@@ -2473,7 +2474,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      */
     private void externalSubmit(ForkJoinTask<?> task) {
         //初始化调用线程的探针值，用于计算WorkQueue索引
-        int r;                                    // initialize caller's probe
+        int r;                                    // initialize caller's probe:此什第一次进入为0，初始化之后不会改变
         if ((r = ThreadLocalRandom.getProbe()) == 0) {
             ThreadLocalRandom.localInit();
             r = ThreadLocalRandom.getProbe();
@@ -2483,46 +2484,63 @@ public class ForkJoinPool extends AbstractExecutorService {
             WorkQueue q;
             int rs, m, k;
             boolean move = false;
-            if ((rs = runState) < 0) {// 池已关闭
-                tryTerminate(false, false);     // help terminate
+            // for递归第一次：runState = 0
+            // for递归第二次：runState = 4
+            if ((rs = runState) < 0) {
+                // runState <0 表示SHUTDOWN
+                tryTerminate(false, false);     // help terminate尝试终止操作
                 throw new RejectedExecutionException();
             }
-            //初始化workQueues
-            else if ((rs & STARTED) == 0 ||     // initialize
-                     ((ws = workQueues) == null || (m = ws.length - 1) < 0)) {
+            //for递归第一次：(rs & STARTED) == 0 为真，进行初始化
+            //for递归第二次：已经完成初始化，下面条件均不成功，所以不会进入此分支
+            else if ((rs & STARTED) == 0 ||     // initialize 如果不是初始状态，则进行初始化
+                     ((ws = workQueues) == null || //或者工作队形为Null
+                             (m = ws.length - 1) < 0)) {//或者工作队列长度为0
                 int ns = 0;
-                rs = lockRunState();
+                rs = lockRunState();//初始化之前给线程池状态加锁：rs  = 1
                 try {
-                    //初始化
-                    if ((rs & STARTED) == 0) {
-                        //初始化stealCounter
+                    //取得锁之后进行初始化
+                    if ((rs & STARTED) == 0) { //rs & STARTED 相当于 1 & STARTED，为0，初次会进入此条件
+                        //初始化stealCounter（0）
                         U.compareAndSwapObject(this, STEALCOUNTER, null,
                                                new AtomicLong());
                         // create workQueues array with size a power of two
                         //创建workQueues，容量为2的幂次方
-                        int p = config & SMASK; // ensure at least 2 slots
-                        int n = (p > 1) ? p - 1 : 1;
-                        n |= n >>> 1; n |= n >>> 2;  n |= n >>> 4;
-                        n |= n >>> 8; n |= n >>> 16; n = (n + 1) << 1;
-                        workQueues = new WorkQueue[n];
+
+                        // SMASK = 0xffff =  0b11111111_11111111 = 2的16次方
+                        // config = 0x0004 = 0b00000000_00000100
+                        int p = config & SMASK; // ensure at least 2 slots。与之后的p = config = 0x0004
+                        int n = (p > 1) ? p - 1 : 1;// 初始化时：n = p - 1 = 4 -1 = 3 = 0b00000000_00000011
+                        // n >>> 1 ----> 0b00000000_00000011 >>> 1 =  0b00000000_00000001
+                        // n |= n >>>1 ---->0b00000000_00000011 | 0b00000000_00000001 = 0b00000000_00000011
+                        n |= n >>> 1;//0b00000000_00000011
+                        n |= n >>> 2;//0b00000000_00000011
+                        n |= n >>> 4;//0b00000000_00000011
+                        n |= n >>> 8;//0b00000000_00000011
+                        n |= n >>> 16;//0b00000000_00000011
+                        n = (n + 1) << 1;//0b00000000_00001000
+                        workQueues = new WorkQueue[n]; // n = 8
                         ns = STARTED;
                     }
                 } finally {
+                    //释放锁
                     unlockRunState(rs, (rs & ~RSLOCK) | ns);//解锁并更新runState
                 }
             }
+            //第二次循环时：r为线程的一个标识（初生成后不会改变）,m = 7 =0b0111,SQMASK = 0b01111110、此时ws[k = r & m & SQMASK] = null,此条件不成立
+           //在第三次循环在第二次循环完成相关初始化后，进入此分支。k = r & m & SQMASK = 0
             else if ((q = ws[k = r & m & SQMASK]) != null) {
                 if (q.qlock == 0 && U.compareAndSwapInt(q, QLOCK, 0, 1)) {
                     ForkJoinTask<?>[] a = q.array;
-                    int s = q.top;
+                    int s = q.top; // s = 4096
                     boolean submitted = false; // initial submission or resizing //获取随机偶数槽位的workQueue
                     try {                      // locked version of push //锁定 workQueue
-                        if ((a != null && a.length > s + 1 - q.base) ||
+                        if ((a != null && a.length > s + 1 - q.base) || // a.length =8192
                             (a = q.growArray()) != null) { //扩容
                             int j = (((a.length - 1) & s) << ASHIFT) + ABASE;
                             U.putOrderedObject(a, j, task);//放入给定任务
                             U.putOrderedInt(q, QTOP, s + 1);//修改push slot
-                            submitted = true;
+                            submitted = true;//会触发 signalWork(ws, q);方法
                         }
                     } finally {
                         U.compareAndSwapInt(q, QLOCK, 1, 0);//解除锁定
@@ -2534,6 +2552,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                 }
                 move = true;                   // move on failure  操作失败，重新获取探针值
             }
+            //第二次循环时：runState为start状态，并且没有，所以锁判断成立，进入此分支
             else if (((rs = runState) & RSLOCK) == 0) { // create new queue
                 q = new WorkQueue(this, null);
                 q.hint = r;
@@ -2542,11 +2561,12 @@ public class ForkJoinPool extends AbstractExecutorService {
                 rs = lockRunState();           // publish index
                 if (rs > 0 &&  (ws = workQueues) != null &&
                     k < ws.length && ws[k] == null)
-                    ws[k] = q;                 // else terminated  // 更新索引k位值的workQueue
+                    ws[k] = q;                 // else terminated  // 更新索引k位值的workQueue。第一次k=0
                 unlockRunState(rs, rs & ~RSLOCK);
             }
             else
                 move = true;                   // move if busy
+            //第一次进入此分支，此时move = false
             if (move)
                 r = ThreadLocalRandom.advanceProbe(r); //重新获取线程探针值
         }
@@ -2572,9 +2592,10 @@ public class ForkJoinPool extends AbstractExecutorService {
         WorkQueue[] ws;
         WorkQueue q;
         int m;
-        int r = ThreadLocalRandom.getProbe(); //探针值，用于计算WorkQueue槽位索引
-        int rs = runState;
-        if ((ws = workQueues) != null && (m = (ws.length - 1)) >= 0 &&
+        int r = ThreadLocalRandom.getProbe(); //探针值，用于计算WorkQueue槽位索引 :第一次进入 r=0
+        int rs = runState;//第一次进入rs = 0
+        if ((ws = workQueues) != null //第一次进入workQueues = nulll
+                && (m = (ws.length - 1)) >= 0 &&
             (q = ws[m & r & SQMASK]) != null && r != 0 && rs > 0 && //获取随机偶数槽位的workQueue
             U.compareAndSwapInt(q, QLOCK, 0, 1)) {//锁定workQueue
             ForkJoinTask<?>[] a; int am, n, s;
@@ -2590,7 +2611,8 @@ public class ForkJoinPool extends AbstractExecutorService {
             }
             U.compareAndSwapInt(q, QLOCK, 1, 0); //解除锁定
         }
-        externalSubmit(task);//初始化workQueues及相关属性
+        //第一次进入时，走这个分支，对ForkJoinPool初始化workQueues及相关属性
+        externalSubmit(task);
     }
 
     /**

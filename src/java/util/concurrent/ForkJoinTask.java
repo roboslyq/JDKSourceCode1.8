@@ -314,11 +314,17 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * */
 
     volatile int status; // accessed directly by pool and workers // 任务运行状态
+    /** DONE_MASK = 0b11110000_00000000_00000000_00000000，高4位为1，可以过滤其它标识位，用来判断状态*/
     static final int DONE_MASK   = 0xf0000000;  // mask out non-completion bits // （遮掩未完成的标识）任务完成状态标志位
+    /** NORMAL = 0b11110000_00000000_00000000_00000000*/
     static final int NORMAL      = 0xf0000000;  // must be negative     //正常状态，必须为负数
+    /** CANCELLED = 0b11010000_00000000_00000000_00000000*/
     static final int CANCELLED   = 0xc0000000;  // must be < NORMAL     //取消状态，是负值.必须小于NORMAL
+    /** CANCELLED = 0b10000000_00000000_00000000_00000000*/
     static final int EXCEPTIONAL = 0x80000000;  // must be < CANCELLED  //异常状态,负值，必须小于CANCELLED
+    /** SIGNAL = 0b00000000_00000001_00000000_00000000*/
     static final int SIGNAL      = 0x00010000;  // must be >= 1 << 16  等待信号,必须不小于1<<16,默认为1<<16.
+    /** SIGNAL = 0b00000000_00000001_11111111_11111111*/
     static final int SMASK       = 0x0000ffff;  // short bits for tags  低位掩码,后十六位的task标签
 
     /**
@@ -844,6 +850,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * true}.
      *
      * @return {@code this}, to simplify usage
+     * 对任务进行拆分
      */
     public final ForkJoinTask<V> fork() {
         Thread t;
@@ -908,13 +915,48 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * @param t1 the first task
      * @param t2 the second task
      * @throws NullPointerException if any task is null
+     * 1、在compute()中拆分任务时，应该调用此方法，调用此方法不会浪费当前线程。
+     *
+     * 2、通常错误的写法：
+     * protected Long compute() {
+     *     if (任务足够小?) {
+     *         return computeDirect();
+     *     }
+     *     // 任务太大,一分为二:
+     *     SumTask subtask1 = new SumTask(...);
+     *     SumTask subtask2 = new SumTask(...);
+     *     // 分别对子任务调用fork():
+     *     subtask1.fork();
+     *     subtask2.fork();
+     *     // 合并结果:
+     *     Long subresult1 = subtask1.join();
+     *     Long subresult2 = subtask2.join();
+     *     return subresult1 + subresult2;
+     * }
+     *
+     * 3、正确的写法
+     *      * protected Long compute() {
+     *      *     if (任务足够小?) {
+     *      *         return computeDirect();
+     *      *     }
+     *      *     // 任务太大,一分为二:
+     *      *     SumTask subtask1 = new SumTask(...);
+     *      *     SumTask subtask2 = new SumTask(...);
+     *            //
+     *      *     invokeAll(subtask1, subtask2);
+     *      *     // 合并结果:
+     *      *     Long subresult1 = subtask1.join();
+     *      *     Long subresult2 = subtask2.join();
+     *      *     return subresult1 + subresult2;
+     *      * }
+     *
      */
     public static void invokeAll(ForkJoinTask<?> t1, ForkJoinTask<?> t2) {
         int s1, s2;
-        t2.fork();
-        if ((s1 = t1.doInvoke() & DONE_MASK) != NORMAL)
+        t2.fork();// t2调用Fork()在新线程中执行
+        if ((s1 = t1.doInvoke() & DONE_MASK) != NORMAL)//t1直接doInvoke，在当前线程执行，不需要fork。
             t1.reportException(s1);
-        if ((s2 = t2.doJoin() & DONE_MASK) != NORMAL)
+        if ((s2 = t2.doJoin() & DONE_MASK) != NORMAL)//等待t2结束
             t2.reportException(s2);
     }
 

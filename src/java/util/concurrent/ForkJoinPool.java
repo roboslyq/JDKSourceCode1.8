@@ -1442,20 +1442,6 @@ public class ForkJoinPool extends AbstractExecutorService {
      * from a blocked join.  Other updates entail multiple subfields
      * and masking, requiring CAS.
      *
-     * ForkJoinPool的总控制信息，包含在一个long里面：
-     *      AC: 表示当前活动的工作线程的数量减去并行度得到的数值。(16 bits)
-     *      TC: 表示全部工作线程的数量减去并行度得到的数值。(16bits)
-     *      ST: 表示当前ForkJoinPool是否正在关闭。(1 bit)
-     *      EC: 表示Treiber stack顶端的等待工作线程的等待次数。(15 bits)
-     *      ID: Treiber stack顶端的等待工作线程的下标取反(16 bits)
-     *
-     * 1111111111111111 1111111111111111  1  111111111111111 1111111111111111
-     * AC               TC                ST EC              ID
-     *
-     *      如果AC为负数，说明没有足够的活动工作线程。
-     *      如果TC为负数，说明工作线程数量没达到最大工作线程数量。
-     *      如果ID为负数，说明至少有一个等待的工作线程。
-     *      如果(int)ctl为负数，说明ForkJoinPool正在关闭。
      */
     //================ForkJoinPool 中的相关常量和实例字段
 
@@ -1504,13 +1490,28 @@ public class ForkJoinPool extends AbstractExecutorService {
     // Instance fields
     // 实例字段
     /**
-     *  ctl是ForkJoinPool中最重要的，也是设计最精密的域，它是整个ForkJoinPool的总控信息。所有信息包含在一个long(64bit)中，这些信息包括：
+     *  一、ctl是ForkJoinPool中最重要的，也是设计最精密的域，它是整个ForkJoinPool的总控信息。所有信息包含在一个long(64bit)中，这些信息包括：
      *      当前活动的工作线程数量
      *      当前总的工作线程数量
      *      ForkJoinPool的关闭标志
      *      在Treiber stack(由全部等待工作线程组成的一个链)顶端等待的工作线程的等待次数
      *      Treiber stack(由全部等待工作线程组成的一个链)顶端等待的工作线程的ID信息(工作线程的下标取反)。
      *  ctl还有一个相对不重要的作用就是，某些非volatile域会依赖ctl来保证可见性。
+     *
+     * 二、ForkJoinPool的总控制信息，包含在一个long里面：
+     *      AC: 表示当前活动的工作线程的数量减去并行度得到的数值。(16 bits)
+     *      TC: 表示全部工作线程的数量减去并行度得到的数值。(16bits)
+     *      ST: 表示当前ForkJoinPool是否正在关闭。(1 bit)
+     *      EC: 表示Treiber stack顶端的等待工作线程的等待次数。(15 bits)
+     *      ID: Treiber stack顶端的等待工作线程的下标取反(16 bits)
+     *
+     * 1111111111111111 1111111111111111  1  111111111111111_11111111_11111111
+     * AC               TC                ST EC              ID
+     *
+     *      如果AC为负数，说明没有足够的活动工作线程。
+     *      如果TC为负数，说明工作线程数量没达到最大工作线程数量。
+     *      如果ID为负数，说明至少有一个等待的工作线程。
+     *      如果(int)ctl为负数，说明ForkJoinPool正在关闭。
      */
     volatile long ctl;                   // main pool control // 主控制参数
     volatile int runState;               // lockable status // 记录了ForkJoinPool的运行状态
@@ -1620,7 +1621,17 @@ public class ForkJoinPool extends AbstractExecutorService {
         Throwable ex = null;
         ForkJoinWorkerThread wt = null;
         try {
-            if (fac != null && (wt = fac.newThread(this)) != null) {
+            if (fac != null
+            /**
+             * 1、将当前线程池this传入wt中。所以wt中持有当前线程池的引用
+             * 2、持有了当前pool引用，wt就可以将自身注入到pool中
+             * 3、具体代码(ForkJoinWorkerThread)：
+             *         super("aForkJoinWorkerThread");
+             *         this.pool = pool;
+             *         this.workQueue = pool.registerWorker(this);
+             */
+                    && (wt = fac.newThread(this)
+                ) != null) {
                 wt.start();
                 return true;
             }
@@ -1653,7 +1664,10 @@ public class ForkJoinPool extends AbstractExecutorService {
                 if (stop != 0)
                     break;
                 if (add) {
-                    createWorker();//创建工作线程
+                    /**
+                     * 创建工作线程并启动线程
+                     */
+                    createWorker();
                     break;
                 }
             }
@@ -1774,10 +1788,22 @@ public class ForkJoinPool extends AbstractExecutorService {
      *          则调用tryAddWorker添加一个新的工作线程。
      */
     final void signalWork(WorkQueue[] ws, WorkQueue q) {
-        long c; int sp, i; WorkQueue v; Thread p;
-        while ((c = ctl) < 0L) {                       // too few active
-            if ((sp = (int)c) == 0) {                  // no idle workers
-                if ((c & ADD_WORKER) != 0L)            // too few workers
+        long c;
+        int sp,
+                i;
+        WorkQueue v;
+        Thread p;
+        /**
+         * 又是一个递归通过改变状态来进入不同分支的流程设计模式
+         */
+        while ((c = ctl) < 0L) {                       // too few active: ctl小于0表示活动线程较少，直接激活即可。
+            //ctl<0意味着active的线程还没有到达阈值，只有ctl<0我们才会去讨论要不要创建或者激活新的线程。
+            // 此处通过强转(int)ctl，很巧妙的拿到了ctl的低16位
+            if ((sp = (int)c) == 0) {                  // no idle workers 没有空闲线程
+                if ((c & ADD_WORKER) != 0L)            // too few workers 工作线程太少，创建建工作线程
+                /**
+                 * 线程创建并启动的核心方法入口：创建线程并启动线程
+                 */
                     tryAddWorker(c);//工作线程太少，添加新的工作线程
                 break;
             }
@@ -2479,6 +2505,16 @@ public class ForkJoinPool extends AbstractExecutorService {
             ThreadLocalRandom.localInit();
             r = ThreadLocalRandom.getProbe();
         }
+        /**
+         * 设计思路：
+         *  通过for递归循环，不断改变相应条件，从而进入不同分支处理。
+         *
+         * 第一遍循环: (runState不是开始状态): 1.lock; 2.创建数组WorkQueue[n]，这里的n是power of 2; 3. runState设置为开始状态。
+         * 第二遍循环:(根据ThreadLocalRandom.getProbe()hash后的数组中相应位置的WorkQueue未初始化): 初始化WorkQueue,通过这种方式创立的WorkQueue均是SHARED_QUEUE,scanState为INACTIVE
+         *
+         * 第三遍循环: 找到刚刚创建的WorkQueue,lock住队列,将数据塞到arraytop位置。如果添加成功，就用调用接下来要摊开讲的重要的方法signalWork。
+         *
+         */
         for (;;) {
             WorkQueue[] ws;
             WorkQueue q;
@@ -2546,6 +2582,9 @@ public class ForkJoinPool extends AbstractExecutorService {
                         U.compareAndSwapInt(q, QLOCK, 1, 0);//解除锁定
                     }
                     if (submitted) {//任务提交成功，创建或激活工作线程
+                        /**
+                         *任务执行的核心入口：如果hash之后的队列已经存在， lock住队列,将数据塞到top位置。如果该队列任务很少(n <= 1)也会调用signalWork
+                         */
                         signalWork(ws, q);//创建或激活一个工作线程来运行任务
                         return;
                     }

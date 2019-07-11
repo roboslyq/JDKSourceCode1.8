@@ -1799,7 +1799,7 @@ public class ForkJoinPool extends AbstractExecutorService {
         while ((c = ctl) < 0L) {                       // too few active: ctl小于0表示活动线程较少，直接激活即可。
             //ctl<0意味着active的线程还没有到达阈值，只有ctl<0我们才会去讨论要不要创建或者激活新的线程。
             // 此处通过强转(int)ctl，很巧妙的拿到了ctl的低16位
-            if ((sp = (int)c) == 0) {                  // no idle workers 没有空闲线程
+            if ((sp = (int)c) == 0) {                  // no idle workers 没有空闲线程:ctl代表的是idle worker当低16位为0的时候，意味着此刻没有已经启动但是空闲的线程,如果在没有空闲的线程的情况下
                 if ((c & ADD_WORKER) != 0L)            // too few workers 工作线程太少，创建建工作线程
                 /**
                  * 线程创建并启动的核心方法入口：创建线程并启动线程

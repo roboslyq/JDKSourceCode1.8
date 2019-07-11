@@ -95,6 +95,10 @@ public class ForkJoinWorkerThread extends Thread {
         U.putOrderedObject(this, INHERITEDACCESSCONTROLCONTEXT, acc);
         eraseThreadLocals(); // clear before registering
         this.pool = pool;
+        /**
+         * orkJoinWorkerThreadFactory来产生一个ForkJoinWorkerThread类型的线程，该线程将会把自己注册到Pool上,
+         * 怎么注册的呢？实现在方法registerWorker,前文我们已经提及,拥有线程的WorkQueue只能出现在数组的奇数下标处。
+         */
         this.workQueue = pool.registerWorker(this);
     }
 

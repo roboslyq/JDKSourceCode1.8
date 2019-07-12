@@ -1896,7 +1896,8 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     /**
      * Top-level runloop for workers, called by ForkJoinWorkerThread.run.
-     * ForkJoinWorkerThread启动之后会调用pool的runWorker来获取任务执行。
+     * 1、在ForkJoinWorkerThread中调用此方法
+     * 2、在ForkJoinWorkerThread启动之后会调用pool的runWorker来获取任务执行。
      * @param w 为一个工作队列，将工作队列传入让pool完成其执行
      */
     final void runWorker(WorkQueue w) {

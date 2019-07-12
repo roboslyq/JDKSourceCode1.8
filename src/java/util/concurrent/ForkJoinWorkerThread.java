@@ -70,14 +70,15 @@ public class ForkJoinWorkerThread extends Thread {
      * both here and in the subclass to access and set Thread fields.
      */
 
-    final ForkJoinPool pool;                // the pool this thread works in
-    final ForkJoinPool.WorkQueue workQueue; // work-stealing mechanics
+    final ForkJoinPool pool;                // the pool this thread works in 当前线程所在的线程池
+    final ForkJoinPool.WorkQueue workQueue; // work-stealing mechanics 工作-窃取结构
 
     /**
      * Creates a ForkJoinWorkerThread operating in the given pool.
      *
      * @param pool the pool this thread works in
      * @throws NullPointerException if pool is null
+     *
      */
     protected ForkJoinWorkerThread(ForkJoinPool pool) {
         // Use a placeholder until a useful name can be set in registerWorker
@@ -96,7 +97,7 @@ public class ForkJoinWorkerThread extends Thread {
         eraseThreadLocals(); // clear before registering
         this.pool = pool;
         /**
-         * orkJoinWorkerThreadFactory来产生一个ForkJoinWorkerThread类型的线程，该线程将会把自己注册到Pool上,
+         * ForkJoinWorkerThreadFactory来产生一个ForkJoinWorkerThread类型的线程，该线程将会把自己注册到Pool上,
          * 怎么注册的呢？实现在方法registerWorker,前文我们已经提及,拥有线程的WorkQueue只能出现在数组的奇数下标处。
          */
         this.workQueue = pool.registerWorker(this);
@@ -152,22 +153,26 @@ public class ForkJoinWorkerThread extends Thread {
      * This method is required to be public, but should never be
      * called explicitly. It performs the main run loop to execute
      * {@link ForkJoinTask}s.
+     * 方法执行入口(不应该手动调用,而是由运行的线程池pool来调用)
      */
     public void run() {
         if (workQueue.array == null) { // only run once
             Throwable exception = null;
             try {
                 onStart();
+                //线程池执行任务
                 pool.runWorker(workQueue);
             } catch (Throwable ex) {
                 exception = ex;
             } finally {
                 try {
+                    //异常终止
                     onTermination(exception);
                 } catch (Throwable ex) {
                     if (exception == null)
                         exception = ex;
                 } finally {
+                    //释放工作
                     pool.deregisterWorker(this, exception);
                 }
             }
@@ -252,6 +257,7 @@ public class ForkJoinWorkerThread extends Thread {
          * Returns a new group with the system ThreadGroup (the
          * topmost, parent-less group) as parent.  Uses Unsafe to
          * traverse Thread.group and ThreadGroup.parent fields.
+         * 线程组
          */
         private static ThreadGroup createThreadGroup() {
             try {

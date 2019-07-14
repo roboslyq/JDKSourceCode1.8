@@ -1694,14 +1694,14 @@ public class ForkJoinPool extends AbstractExecutorService {
                        (TC_MASK & (c + TC_UNIT)));
             if (ctl == c) {
                 int rs, stop;                 // check if terminating
-                if ((stop = (rs = lockRunState()) & STOP) == 0)
+                if ((stop = (rs = lockRunState()) & STOP) == 0)//为0表示没有终止
                     add = U.compareAndSwapLong(this, CTL, c, nc);
                 unlockRunState(rs, rs & ~RSLOCK); //释放锁
                 if (stop != 0)
                     break;
                 if (add) {
                     /**
-                     * 创建工作线程并启动线程
+                     * 第一次进入此分支条件为真: 创建工作线程并启动线程
                      */
                     createWorker();
                     break;
@@ -1835,11 +1835,11 @@ public class ForkJoinPool extends AbstractExecutorService {
         /**
          * 又是一个递归通过改变状态来进入不同分支的流程设计模式
          */
-        while ((c = ctl) < 0L) {                       // too few active: ctl小于0表示活动线程较少我见过没超阀值，直接拿过来用即可。
+        while ((c = ctl) < 0L) {                       // too few active:  第一次进入此分支条件为真: ctl小于0表示活动线程较少我见过没超阀值，直接拿过来用即可。
             //ctl<0意味着active的线程还没有到达阈值，只有ctl>0我们才会去讨论要不要创建或者激活新的线程。
             // 此处通过强转(int)ctl，很巧妙的拿到了ctl的低16位
-            if ((sp = (int)c) == 0) {                  // no idle workers 没有空闲线程:ctl代表的是idle worker当低16位为0的时候，意味着此刻没有已经启动但是空闲的线程,如果在没有空闲的线程的情况下
-                if ((c & ADD_WORKER) != 0L)            // too few workers 工作线程太少，创建建工作线程
+            if ((sp = (int)c) == 0) {                  //no idle workers 没有空闲线程: 第一次进入此分支条件为真: ctl代表的是idle worker当低16位为0的时候，意味着此刻没有已经启动但是空闲的线程,如果在没有空闲的线程的情况下
+                if ((c & ADD_WORKER) != 0L)            //  too few workers： 第一次进入此分支条件为真: 工作线程太少，创建建工作线程
                 /**
                  * 线程创建并启动的核心方法入口：创建线程并启动线程
                  */
@@ -2576,7 +2576,9 @@ public class ForkJoinPool extends AbstractExecutorService {
         for (;;) {
             WorkQueue[] ws;
             WorkQueue q;
-            int rs, m, k;
+            int rs,//runState
+                    m,//ws.length - 1
+                    k;
             boolean move = false;
             // for递归第一次：runState = 0
             // for递归第二次：runState = 4
@@ -2674,21 +2676,23 @@ public class ForkJoinPool extends AbstractExecutorService {
      * submitter's current queue. Only the (vastly) most common path
      * is directly handled in this method, while screening for need
      * for externalSubmit.
+     * 尝试将给定的任务添加到提交者当前队列的"submission queue"中。这种方法只直接处理(非常)最常见的路径，同时判断是否需要externalSubmit。
      *
-     * @param task the task. Caller must ensure non-null.
-     * 一、 添加给定任务到submission队列中.
+     * @param task the task. Caller must ensure non-null. 外部的任务实现(ForkJoinTask)
+     * 一、 从外部添加给定任务到submission队列中.
+     *
      * 二、 externalPush和externalSubmit两个方法的联系：
      *      1、它们的作用都是把任务放到队列中等待执行。不同的是，externalSubmit可以说是完整版的externalPush，
      *         在任务首次提交时，需要初始化workQueues及其他相关属性，这个初始化操作就是externalSubmit来完成的；
      *         而后再向池中提交的任务都是通过简化版的externalSubmit-externalPush来完成。
-     *      2、externalPush的执行流程很简单：首先找到一个随机偶数槽位的 workQueue，然后把任务放入这个 workQueue 的任务数组中，
-     *         并更新top位。如果队列的剩余任务数小于1，则尝试创建或激活一个工作线程来运行任务
-     *        （防止在externalSubmit初始化时发生异常导致工作线程创建失败）。
+     *      2、externalPush的执行流程很简单：
+     *             首先找到一个随机偶数槽位的 workQueue，然后把任务放入这个 workQueue 的任务数组中，并更新top位。
+     *             如果队列的剩余任务数小于1，则尝试创建或激活一个工作线程来运行任务（防止在externalSubmit初始化时发生异常导致工作线程创建失败）。
      */
     final void externalPush(ForkJoinTask<?> task) {
         WorkQueue[] ws;
         WorkQueue q;
-        int m;
+        int m;//在后续赋值，为队列长度：(ws.length - 1)
         int r = ThreadLocalRandom.getProbe(); //探针值，用于计算WorkQueue槽位索引 :第一次进入 r=0
         int rs = runState;//第一次进入rs = 0
         if ((ws = workQueues) != null //第一次：workQueues = nulll，不会进入此分支

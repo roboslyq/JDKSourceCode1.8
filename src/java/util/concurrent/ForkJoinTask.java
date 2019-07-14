@@ -499,10 +499,10 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
     private int doJoin() {
         int s; Thread t; ForkJoinWorkerThread wt; ForkJoinPool.WorkQueue w;
-        //已完成,返回status,未完成再尝试后续
-        return (s = status) < 0 ? s :
+        return (s = status) < 0 ? s ://status < 0 表示已完成,返回status,未完成再尝试后续
                 //未完成,当前线程是ForkJoinWorkerThread,从该线程中取出workQueue,并尝试将
                 //当前task出队然后执行,执行的结果是完成则返回状态,否则使用当线程池所在的ForkJoinPool的awaitJoin方法等待.
+                //一般正常情况为true
             ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
             (w = (wt = (ForkJoinWorkerThread)t).workQueue).
             tryUnpush(this) && (s = doExec()) < 0 ? s :

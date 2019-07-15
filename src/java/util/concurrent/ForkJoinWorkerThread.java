@@ -71,8 +71,14 @@ public class ForkJoinWorkerThread extends Thread {
      * requires that we break quite a lot of encapsulation (via Unsafe)
      * both here and in the subclass to access and set Thread fields.
      */
-
+    //pool属性表示这个进行归并计算的线程所属的ForkJoinPool实例，
     final ForkJoinPool pool;                // the pool this thread works in 当前线程所在的线程池
+    /**
+     *workQueue属性是java.util.concurrent.ForkJoinPool.WorkQueue这个类的实例，它表示这个线程所使用的子任务待执行队列，而且可以被其它工作线程偷取任务。
+     *后者的内部是一个数组结构，并使用一些关键属性记录这个队列的实时状态，更具体的来说这个WorkQueue**是一个双端队列**
+     * | T | T | T | T | T | T |......| T | T | T | T | T | T |
+     *  base                                              top[+N]
+     */
     final ForkJoinPool.WorkQueue workQueue; // work-stealing mechanics 工作-窃取结构
 
     /**

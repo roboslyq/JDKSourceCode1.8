@@ -162,7 +162,13 @@ import java.security.Permissions;
  * <p>This implementation rejects submitted tasks (that is, by throwing
  * {@link RejectedExecutionException}) only when the pool is shut down
  * or internal resources have been exhausted.
- * 一、任务分类：
+ * 一、设计特点：
+ *  （1）Fork/Join Pool采用优良的设计、代码实现和硬件原子操作机制等多种思路保证其执行性能：其中包括（但不限于）：
+ *          计算资源共享、高性能队列、避免伪共享、工作窃取机制等。
+ *  （2）大量使用位运算和位运算技巧
+ *  （3）有大量Unsafe原子操作。
+ *
+ * 二、任务分类：
  * ForkJoinPool 中的任务分为两种：
  *      一种是本地提交的任务（Submission task，如 execute、submit 提交的任务）；
  *      另外一种是 fork 出的子任务（Worker task）。
@@ -835,7 +841,7 @@ public class ForkJoinPool extends AbstractExecutorService {
          *  static final int SCANNING = 1; // false when running tasks
          *  static final int INACTIVE = 1 << 31; // must be negative
          */
-        volatile int scanState;    // versioned, <0: inactive; odd:scanning // Woker状态： 偶数表示RUNNING 奇数表示SCANNING负数表示inactive
+        volatile int scanState;    // versioned, <0: inactive; odd:scanning // Woker状态： 偶数表示RUNNING 奇数表示SCANNING 负数表示inactive
         // 记录前任的 idle worker
         int stackPred;             // pool stack (ctl) predecessor// 记录前一个栈顶的idle worker
         int nsteals;               // number of steals // 偷取任务数
@@ -850,14 +856,20 @@ public class ForkJoinPool extends AbstractExecutorService {
         volatile int qlock;        // 1: locked, < 0: terminate; else 0
         /**
          * worker steal的偏移量,因为其他的线程都可以偷该队列的任务,所有base使用volatile标识。(FIFO)
+         * 简单来说，就是steal work的下一个出队元素的索引位（主要是为线程窃取准备的索引位置）
          */
         volatile int base;         // index of next slot for poll //下一个poll操作的索引（栈底/队列头）
         /**
          * owner执行任务的偏移量。(LIFO)
+         * 即owner线程的工作任务获取索引位置
          */
         int top;                   // index of next slot for push //  下一个push操作的索引（栈顶/队列尾）
         ForkJoinTask<?>[] array;   // the elements (initially unallocated) // 任务数组
+        // 队列所属的ForkJoinPool（可能为空）
+        // 注意，一个ForkJoinPool中会有多个执行线程，还会有比执行线程更多的（或一样多的）队列
         final ForkJoinPool pool;   // the containing pool (may be null)     当前工作队列对应的pool
+
+        // 这个队列所属的归并计算工作线程。注意，工作队列也可能不属于任何工作线程
         final ForkJoinWorkerThread owner; // owning thread or null if shared  // 当前工作队列的工作线程，共享模式下为null
         /**
          * 如果 owner 挂起，则使用该变量做记录。
@@ -876,7 +888,7 @@ public class ForkJoinPool extends AbstractExecutorService {
             this.pool = pool;
             this.owner = owner;
             // Place indices in the center of array (that is not yet allocated)
-            //向右移一位，相当于除以2，即窝里的一半
+            //向右移一位，相当于除以2，即初始容量一半
             base = top = INITIAL_QUEUE_CAPACITY >>> 1;
         }
 
@@ -921,6 +933,7 @@ public class ForkJoinPool extends AbstractExecutorService {
          *
          * @param task the task. Caller must ensure non-null.
          * @throws RejectedExecutionException if array cannot be resized
+         * 当ForkJoinWorkerThread需要向双端队列中放入一个新的待执行子任务时，会调用WorkQueue中的push方法
          */
         final void push(ForkJoinTask<?> task) {
             ForkJoinTask<?>[] a; //现有任务数组：array
@@ -928,17 +941,25 @@ public class ForkJoinPool extends AbstractExecutorService {
             int b = base,
                 s = top,
                  n;// s - b
+            // 请注意，在执行task.fork时，触发push情况下，array不会为null
+            // 因为在这之前workqueue中的array已经完成了初始化（在工作线程初始化时就完成了）
             if ((a = array) != null) {    // ignore if queue removed ，如果现在任务数据array为空，则忽略
                 int m = a.length - 1;     // fenced write for task visibility 不为空，则取m = a.length - 1,即数组下标最大值
                 //将task放入workQueue
+                // U常量是java底层的sun.misc.Unsafe操作类，这个类提供硬件级别的原子操作
+                // putOrderedObject方法在指定的对象a中，指定的内存偏移量的位置，赋予一个新的元素
+
                 U.putOrderedObject(a, ((m & s) << ASHIFT) + ABASE, task);
-                //设置top值 +1
+                // putOrderedInt方法对当前指定的对象中的指定字段，进行赋值操作
+                // 这里的代码意义是将workQueue对象本身中的top标示的位置 + 1，
                 U.putOrderedInt(this, QTOP, s + 1);
                 if ((n = s - b) <= 1) {
                     if ((p = pool) != null)
                         //新建或唤醒一个工作线程
+                        //signalWork方法的意义在于，在当前活动的工作线程过少的情况下，创建新的工作线程
                         p.signalWork(p.workQueues, this);
                 }
+                // 如果array的剩余空间不够了，则进行增加
                 else if (n >= m)
                     growArray();
             }
@@ -1045,6 +1066,9 @@ public class ForkJoinPool extends AbstractExecutorService {
 
         /**
          * Takes next task, if one exists, in order specified by mode.
+         * 如果asyncMode设定为后进先出（LIFO）
+         * 则使用pop()从双端队列的前端取出任务
+         * 否则就是先进先出模式（FIFO），使用poll()从双端队列的后端取出任务
          */
         final ForkJoinTask<?> nextLocalTask() {
             return (config & FIFO_QUEUE) == 0 ? pop() : poll();
@@ -2378,14 +2402,20 @@ public class ForkJoinPool extends AbstractExecutorService {
      * Gets and removes a local or stolen task for the given worker.
      *
      * @return a task, if available
+     *  试图从指定的队列中取出下一个待执行任务
      */
     final ForkJoinTask<?> nextTaskFor(WorkQueue w) {
         for (ForkJoinTask<?> t;;) {
             WorkQueue q; int b;
+            // 该方法试图从“w”这个队列获取下一个待处理子任务
             if ((t = w.nextLocalTask()) != null)
                 return t;
+            // 如果没有获取到，则使用findNonEmptyStealQueue方法
+            // 随机得到一个元素非空，并且可以进行任务窃取的存在于ForkJoinPool中的其它队列
+            // 这个队列被记为“q”
             if ((q = findNonEmptyStealQueue()) == null)
                 return null;
+            // 试图从“q”这个队列base位处取出待执行任务
             if ((b = q.base) - q.top < 0 && (t = q.pollAt(b)) != null)
                 return t;
         }
@@ -2558,6 +2588,9 @@ public class ForkJoinPool extends AbstractExecutorService {
      * queue if the one at index if empty or contended.
      *
      * @param task the task. Caller must ensure non-null.
+     * 进行WorkQueue数组初始化的代码：
+     *              当外部调用这通过submit、execute、invoke方法向ForkJoinPool提交一个计算任务时，
+     *              会运行这段代码为ForkJoinPool创建多个WorkQueue并形成数组。
      * 任务提交:
      * 1、externalSubmit是externalPush的完整版本，主要用于第一次提交任务时初始化workQueues及相关属性，并且提交给定任务到队列中。具体执行步骤如下：
      * 2、如果池为终止状态(runState<0)，调用tryTerminate来终止线程池，并抛出任务拒绝异常；
@@ -2600,6 +2633,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                 tryTerminate(false, false);     // help terminate尝试终止操作
                 throw new RejectedExecutionException();
             }
+            //如果条件成立，就说明当前ForkJoinPool类中，还没有任何队列，所以要进行队列初始化
             //for递归第一次：(rs & STARTED) == 0 为真，进行初始化
             //for递归第二次：已经完成初始化，下面条件均不成功，所以不会进入此分支
             else if ((rs & STARTED) == 0 ||     // initialize 如果不是初始状态，则进行初始化
@@ -2615,9 +2649,23 @@ public class ForkJoinPool extends AbstractExecutorService {
                                                new AtomicLong());
                         // create workQueues array with size a power of two
                         //创建workQueues，容量为2的幂次方
+                        /**
+                         * 1、这是config的来源,mode是ForkJoinPool构造函数中设定的asyncMode，如果为LIFO，则mode为0，否则为65536
+                         * 2、parallelism 为技术人员设置的（或者程序自行设定的）并发等级
+                         * 3、MASK = 0xffff =  0b11111111_11111111 = 2的16次方
+                         * 4、config = 0x0004 = 0b00000000_00000100
+                         * 5、parallelism与n的关系图(即n的容量是位数递增的)
+                         * parallelism	n	parallelism	n
+                         * 1	4	2	4
+                         * 3	8	4	8
+                         * 5	16	6	16
+                         * 7	16	8	16
+                         * 9	32	10	32
+                         * …	32	14	32
+                         * …	32	16	32
+                         * 17	64	…	…
+                         */
 
-                        // SMASK = 0xffff =  0b11111111_11111111 = 2的16次方
-                        // config = 0x0004 = 0b00000000_00000100
                         int p = config & SMASK; // ensure at least 2 slots。与之后的p = config = 0x0004
                         int n = (p > 1) ? p - 1 : 1;// 初始化时：n = p - 1 = 4 -1 = 3 = 0b00000000_00000011
                         // n >>> 1 ----> 0b00000000_00000011 >>> 1 =  0b00000000_00000001
@@ -2705,12 +2753,27 @@ public class ForkJoinPool extends AbstractExecutorService {
     final void externalPush(ForkJoinTask<?> task) {
         WorkQueue[] ws;
         WorkQueue q;
+
         int m;//在后续赋值，为队列长度：(ws.length - 1)
+
+        // 取得一个随机探查数，可能为0也可能为其它数
         int r = ThreadLocalRandom.getProbe(); //探针值，用于计算WorkQueue槽位索引 :第一次进入 r=0
+
+        // 获取当前ForkJoinPool的运行状态
         int rs = runState;//第一次进入rs = 0
-        if ((ws = workQueues) != null //第一次：workQueues = nulll，不会进入此分支
-                && (m = (ws.length - 1)) >= 0 &&
-            (q = ws[m & r & SQMASK]) != null && r != 0 && rs > 0 && //获取随机偶数槽位的workQueue
+        if ((ws = workQueues) != null //第一次：workQueues = nulll，不会进入此分支。但后续fork出来的任务时，workQueue不为空
+                && (m = (ws.length - 1)) >= 0
+                /**
+                 * 核心代码： q = ws[m & r & SQMASK]
+                 * 1、m值为队列长度：(ws.length - 1)，例如当前WorkQueue数组大小为16，那么m的值就为15
+                 * 2、r是一个线程独立的随机数生成器，关于java.util.concurrent.ThreadLocalRandom类的功能和使用方式可参见其它资料
+                 * 3、而SQMASK是一个常量，值为126 （0x7e = 0b01111110）
+                 * 结论：实际上，任何数和126进行“与”运算，其结果只可能是0或者偶数，即0 、 2 、 4 、 6 、 8。
+                 *      也就是说以上代码中从名为“ws”的WorkQueue数组中，取出的元素只可能是第0个或者第偶数个队列。
+                 */
+                && (q = ws[m & r & SQMASK]) != null
+
+                && r != 0 && rs > 0 && //获取随机偶数槽位的workQueue
             U.compareAndSwapInt(q, QLOCK, 0, 1)) {
             /**
              * 如果hash之后的队列已经存在
@@ -2721,14 +2784,21 @@ public class ForkJoinPool extends AbstractExecutorService {
             if ((a = q.array) != null &&
                 (am = a.length - 1) > (n = (s = q.top) - q.base)) {
                 int j = ((am & s) << ASHIFT) + ABASE;//计算任务索引位置
+                // 以下三个原子操作首先是将task放入队列
                 U.putOrderedObject(a, j, task);//任务入列
+                // 然后将“q”这个submission queue的top标记+1
                 U.putOrderedInt(q, QTOP, s + 1);//更新push slot
+                // 最后解除这个submission queue的锁定状态
                 U.putIntVolatile(q, QLOCK, 0);//解除锁定
+                // 如果条件成立，说明这时处于active的工作线程可能还不够，所以调用signalWork方法
                 if (n <= 1)
                     //signalWork是fork/join框架中重要的方法之一,用于创建或者激活工作线程。
                     signalWork(ws, q);//任务数小于1时尝试创建或激活一个工作线程
                 return;
             }
+            // 这里试图接除对这个submission queue的锁定状态
+            // 为什么会有两次接触呢？因为在之前代码中给队列加锁后，
+            // 可能队列的现有空间并不满足添加新的task的条件
             U.compareAndSwapInt(q, QLOCK, 1, 0); //解除锁定
         }
         //如果第一次提交(或者是hash之后的队列还未初始化)，走这个分支，,调用externalSubmit

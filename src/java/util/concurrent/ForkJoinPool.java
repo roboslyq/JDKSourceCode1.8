@@ -1149,6 +1149,11 @@ public class ForkJoinPool extends AbstractExecutorService {
          */
         final void runTask(ForkJoinTask<?> task) {
             if (task != null) {
+                /**
+                 * 首先scanState &= ~SCANNING;标识该线程处于繁忙状态。
+                 *      1、执行偷取的Task。
+                 *      2、调用execLocalTasks对线程所属的WorkQueue内的任务进行LIFO执行。
+                 */
                 scanState &= ~SCANNING; // mark as busy
                 (currentSteal = task).doExec();
                 U.putOrderedObject(this, QCURRENTSTEAL, null); // release for GC
@@ -1896,6 +1901,7 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     /**
      * Top-level runloop for workers, called by ForkJoinWorkerThread.run.
+     *
      * 1、在ForkJoinWorkerThread中调用此方法
      * 2、在ForkJoinWorkerThread启动之后会调用pool的runWorker来获取任务执行。
      * @param w 为一个工作队列，将工作队列传入让pool完成其执行
@@ -1936,20 +1942,27 @@ public class ForkJoinPool extends AbstractExecutorService {
      * @param r a random seed
      * @return a task, or null if none found
      *  一、WorkQueue是有owner线程的队列，我们可以知道以下信息:
-     *  •config = index | mode
-     *  •scanState = index > 0
+     *      1、config = index | mode
+     *      2、scanState = index > 0
      *  二、我们首先通过random的r来找到一个我们准备偷取的队列。
      *      1、如果我们准备偷取的队列刚好有任务在排队(也有可能是owner自己的那个队列)；从队列的队尾即base位置取到任务返回base + 1
      *      2、如果我们遍历了一圈(((k = (k + 1) & m) == origin))都没有偷到,我们就认为当前的active 线程过剩了,我们准备将当前的线程
-     *          (即owner)挂起,我们首先 index | INACTIVE 形成 ctl的后32位;并行将ac减一。其次，将原来的挂起的top的index记录到stackPred中。
+     *          (即owner)挂起,我们首先 index | INACTIVE 形成 ctl的后32位;并行将ac减一。
+     *          其次，将原来的挂起的top的index记录到stackPred中。
      *      3、继续遍历如果仍然一无所获,将跳出循环；如果偷到了一个任务,我们将使用tryRelease激活。
      */
     private ForkJoinTask<?> scan(WorkQueue w, int r) {
-        WorkQueue[] ws; int m;
-        if ((ws = workQueues) != null && (m = ws.length - 1) > 0 && w != null) {
+        WorkQueue[] ws;
+        int m;
+        if ((ws = workQueues) != null //队列不为空
+                && (m = ws.length - 1) > 0 //队列长度大于1
+                && w != null) {//队列不为空
             int ss = w.scanState;                     // initially non-negative
+            //自旋递归
             for (int origin = r & m, k = origin, oldSum = 0, checkSum = 0;;) {
-                WorkQueue q; ForkJoinTask<?>[] a; ForkJoinTask<?> t;
+                WorkQueue q;
+                ForkJoinTask<?>[] a;
+                ForkJoinTask<?> t;
                 int b, n; long c;
                 if ((q = ws[k]) != null) {
                     if ((n = (b = q.base) - q.top) < 0 &&

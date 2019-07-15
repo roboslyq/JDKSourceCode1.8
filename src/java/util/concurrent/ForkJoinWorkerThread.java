@@ -51,6 +51,8 @@ import java.security.ProtectionDomain;
  *
  * @since 1.7
  * @author Doug Lea
+ *
+ * 主要完成一件事：在线程启动后调用pool的runWorker(workQueue)方法，来完成相应的任务。
  */
 public class ForkJoinWorkerThread extends Thread {
     /*

@@ -797,6 +797,9 @@ public class ForkJoinPool extends AbstractExecutorService {
      * arrays sharing cache lines. The @Contended annotation alerts
      * JVMs to try to keep instances apart.
      * ForkJoinPool 的核心数据结构，本质上是work-stealing 模式的双端任务队列，内部存放 ForkJoinTask 对象任务，
+     * 它底层是通过数组实现的双端队列，容量为2的幂次，任务队列在首次调用线程池外部方法提交任务之后初始化任务队列，
+     * 通过ThreadLocalRandom.probe来计算出任务队列在数组中的索引位置（外部方法调用产生的索引一定是偶数），没有绑定工作线程。
+     *
      * 使用 @Contented 注解修饰防止伪共享。
      * 1、工作线程在运行中产生新的任务（通常是因为调用了 fork()）时，此时可以把 WorkQueue 的数据结构视为一个栈，
      *      新的任务会放入栈顶（top 位）；工作线程在处理自己工作队列的任务时，按照 LIFO 的顺序。
@@ -945,11 +948,13 @@ public class ForkJoinPool extends AbstractExecutorService {
             // 因为在这之前workqueue中的array已经完成了初始化（在工作线程初始化时就完成了）
             if ((a = array) != null) {    // ignore if queue removed ，如果现在任务数据array为空，则忽略
                 int m = a.length - 1;     // fenced write for task visibility 不为空，则取m = a.length - 1,即数组下标最大值
-                //将task放入workQueue
-                // U常量是java底层的sun.misc.Unsafe操作类，这个类提供硬件级别的原子操作
-                // putOrderedObject方法在指定的对象a中，指定的内存偏移量的位置，赋予一个新的元素
-
+                /**
+                 * 将task放入workQueue
+                 * U常量是java底层的sun.misc.Unsafe操作类，这个类提供硬件级别的原子操作
+                 * putOrderedObject方法在指定的对象a中，指定的内存偏移量的位置，赋予一个新的元素
+                 */
                 U.putOrderedObject(a, ((m & s) << ASHIFT) + ABASE, task);
+
                 // putOrderedInt方法对当前指定的对象中的指定字段，进行赋值操作
                 // 这里的代码意义是将workQueue对象本身中的top标示的位置 + 1，
                 U.putOrderedInt(this, QTOP, s + 1);
@@ -2670,14 +2675,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                         int n = (p > 1) ? p - 1 : 1;// 初始化时：n = p - 1 = 4 -1 = 3 = 0b00000000_00000011
                         // n >>> 1 ----> 0b00000000_00000011 >>> 1 =  0b00000000_00000001
                         // n |= n >>>1 ---->0b00000000_00000011 | 0b00000000_00000001 = 0b00000000_00000011
-                        n |= n >>> 1;//0b00000000_00000011
-                        n |= n >>> 2;//0b00000000_00000011
-                        n |= n >>> 4;//0b00000000_00000011
-                        n |= n >>> 8;//0b00000000_00000011
-                        n |= n >>> 16;//0b00000000_00000011
-                        n = (n + 1) << 1;//0b00000000_00001000
-                        workQueues = new WorkQueue[n]; // n = 8
-                        ns = STARTED;
+
                     }
                 } finally {
                     //释放锁
@@ -2740,7 +2738,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * 尝试将给定的任务添加到提交者当前队列的"submission queue"中。这种方法只直接处理(非常)最常见的路径，同时判断是否需要externalSubmit。
      *
      * @param task the task. Caller must ensure non-null. 外部的任务实现(ForkJoinTask)
-     * 一、 从外部添加给定任务到submission队列中.
+     * 一、 从外部添加给定任务到submission队列中.注意：该方法是“随机提交”
      *
      * 二、 externalPush和externalSubmit两个方法的联系：
      *      1、它们的作用都是把任务放到队列中等待执行。不同的是，externalSubmit可以说是完整版的externalPush，
@@ -2771,18 +2769,18 @@ public class ForkJoinPool extends AbstractExecutorService {
                  * 结论：实际上，任何数和126进行“与”运算，其结果只可能是0或者偶数，即0 、 2 、 4 、 6 、 8。
                  *      也就是说以上代码中从名为“ws”的WorkQueue数组中，取出的元素只可能是第0个或者第偶数个队列。
                  */
-                && (q = ws[m & r & SQMASK]) != null
-
-                && r != 0 && rs > 0 && //获取随机偶数槽位的workQueue
-            U.compareAndSwapInt(q, QLOCK, 0, 1)) {
+                && (q = ws[m & r & SQMASK]) != null //获取随机偶数槽位的workQueue
+                && r != 0
+                && rs > 0
+                && U.compareAndSwapInt(q, QLOCK, 0, 1)) {//对q进行加锁
             /**
              * 如果hash之后的队列已经存在
              * 则lock住队列,将数据塞到top位置。如果该队列任务很少(n <= 1)也会调用signalWork
              */
             //锁定workQueue
             ForkJoinTask<?>[] a; int am, n, s;
-            if ((a = q.array) != null &&
-                (am = a.length - 1) > (n = (s = q.top) - q.base)) {
+            if ((a = q.array) != null
+                    &&  (am = a.length - 1) > (n = (s = q.top) - q.base)) {
                 int j = ((am & s) << ASHIFT) + ABASE;//计算任务索引位置
                 // 以下三个原子操作首先是将task放入队列
                 U.putOrderedObject(a, j, task);//任务入列
@@ -3823,19 +3821,22 @@ public class ForkJoinPool extends AbstractExecutorService {
      * 并且它使用的是同步模式，也就是说可以支持任务合并（join）。
      */
     private static ForkJoinPool makeCommonPool() {
-        int parallelism = -1;
+        int parallelism = -1;//并行度初始值
         ForkJoinWorkerThreadFactory factory = null;
         UncaughtExceptionHandler handler = null;
+        // 可以通过在java程序启动时，指定这些参数的方式
+        // 来完成并行等级，线程工厂，异常处理类的指定工作
         try {  // ignore exceptions in accessing/parsing properties
+            //从系统中获取相应参数（如果有配置的话）
             String pp = System.getProperty
                 ("java.util.concurrent.ForkJoinPool.common.parallelism"); //并行度
             String fp = System.getProperty
                 ("java.util.concurrent.ForkJoinPool.common.threadFactory");//线程工厂
             String hp = System.getProperty
                 ("java.util.concurrent.ForkJoinPool.common.exceptionHandler");//异常处理类
-            if (pp != null)
+            if (pp != null)//有配置，则使用配置值
                 parallelism = Integer.parseInt(pp);
-            if (fp != null)
+            if (fp != null)//有配置则使用配置值，否则使用默认工厂
                 factory = ((ForkJoinWorkerThreadFactory)ClassLoader.
                            getSystemClassLoader().loadClass(fp).newInstance());
             if (hp != null)
@@ -3843,17 +3844,30 @@ public class ForkJoinPool extends AbstractExecutorService {
                            getSystemClassLoader().loadClass(hp).newInstance());
         } catch (Exception ignore) {
         }
-        if (factory == null) {
+        if (factory == null) {//为空表示启动参数未配置，使用默认值defaultForkJoinWorkerThreadFactory
+            // 如果当前没有启动SecurityManager，安全策略管理器
+            // 这时使用defaultForkJoinWorkerThreadFactory这个工厂对象
+            // 它是java.util.concurrent.ForkJoinPool.DefaultForkJoinWorkerThreadFactory这个类的实例
+            /**
+             * 对commonPool的初始化过程有Java security安全策略框架参与，doPrivileged方法为排除Java security安全策略框架的权限检查，
+             * 而SecurityManager是Java security安全策略框架的管理器。一般情况下Java应用程序不会自动启动安全管理器，
+             * 不过读者可以在Java应用程序启动时，使用-Djava.security.manager参数启动SecurityManager，
+             * 或者在你的代码中通过System.setSecurityManager()方法显式设定一个。
+             */
             if (System.getSecurityManager() == null)
                 factory = defaultForkJoinWorkerThreadFactory;
             else // use security-managed default
                 factory = new InnocuousForkJoinWorkerThreadFactory();
         }
+        // 如果并行等级小于0，并且当前应用程序可用CPU内核数为1
+        // 那么设定parallelism并行等级为1
         if (parallelism < 0 && // default 1 less than #cores
             (parallelism = Runtime.getRuntime().availableProcessors() - 1) <= 0)
             parallelism = 1;//默认并行度为1
         if (parallelism > MAX_CAP)
             parallelism = MAX_CAP;
+
+        // 最后使用这个构造函数初始化commonPool
         return new ForkJoinPool(parallelism, factory, handler, LIFO_QUEUE,
                                 "ForkJoinPool.commonPool-worker-");
     }

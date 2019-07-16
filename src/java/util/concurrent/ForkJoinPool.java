@@ -2633,7 +2633,7 @@ public class ForkJoinPool extends AbstractExecutorService {
             boolean move = false;
             // for递归第一次：runState = 0
             // for递归第二次：runState = 4
-            if ((rs = runState) < 0) {
+            if ((rs = runState) < 0) {/**CASE1：线程池已经关闭，则执行终止操作，并拒绝该任务的提交；*/
                 // runState <0 表示SHUTDOWN
                 tryTerminate(false, false);     // help terminate尝试终止操作
                 throw new RejectedExecutionException();
@@ -2641,6 +2641,7 @@ public class ForkJoinPool extends AbstractExecutorService {
             //如果条件成立，就说明当前ForkJoinPool类中，还没有任何队列，所以要进行队列初始化
             //for递归第一次：(rs & STARTED) == 0 为真，进行初始化
             //for递归第二次：已经完成初始化，下面条件均不成功，所以不会进入此分支
+            /** CASE2: 线程池未初始化，则进行初始化，主要就是初始化任务队列数组；*/
             else if ((rs & STARTED) == 0 ||     // initialize 如果不是初始状态，则进行初始化
                      ((ws = workQueues) == null || //或者工作队形为Null
                              (m = ws.length - 1) < 0)) {//或者工作队列长度为0
@@ -2670,12 +2671,20 @@ public class ForkJoinPool extends AbstractExecutorService {
                          * …	32	16	32
                          * 17	64	…	…
                          */
+                        // 初始化工作队列数组, 数组大小必须为2的幂次
 
                         int p = config & SMASK; // ensure at least 2 slots。与之后的p = config = 0x0004
                         int n = (p > 1) ? p - 1 : 1;// 初始化时：n = p - 1 = 4 -1 = 3 = 0b00000000_00000011
                         // n >>> 1 ----> 0b00000000_00000011 >>> 1 =  0b00000000_00000001
                         // n |= n >>>1 ---->0b00000000_00000011 | 0b00000000_00000001 = 0b00000000_00000011
-
+                        n |= n >>> 1;
+                        n |= n >>> 2;
+                        n |= n >>> 4;
+                        n |= n >>> 8;
+                        n |= n >>> 16;
+                        n = (n + 1) << 1;
+                        workQueues = new WorkQueue[n];
+                        ns = STARTED;   // 线程池状态转化为STARTED
                     }
                 } finally {
                     //释放锁
@@ -2684,6 +2693,7 @@ public class ForkJoinPool extends AbstractExecutorService {
             }
             //第二次循环时：r为线程的一个标识（初生成后不会改变）,m = 7 =0b0111,SQMASK = 0b01111110、此时ws[k = r & m & SQMASK] = null,此条件不成立
             //在第三次循环在第二次循环完成相关初始化后，进入此分支。k = r & m & SQMASK = 0
+            /** CASE3: 命中了任务队列，则将任务入队，并尝试创建/唤醒一个工作线程（Worker）；*/
             else if ((q = ws[k = r & m & SQMASK]) != null) {
                 if (q.qlock == 0 && U.compareAndSwapInt(q, QLOCK, 0, 1)) {
                     ForkJoinTask<?>[] a = q.array;
@@ -2711,10 +2721,11 @@ public class ForkJoinPool extends AbstractExecutorService {
                 move = true;                   // move on failure  操作失败，重新获取探针值
             }
             //第二次循环时：runState为start状态，并且没有，所以锁判断成立，进入此分支
+            /**CASE4: 未命中任务队列，则在偶数索引处创建一个任务队列*/
             else if (((rs = runState) & RSLOCK) == 0) { // create new queue
                 q = new WorkQueue(this, null);
                 q.hint = r;
-                q.config = k | SHARED_QUEUE;
+                q.config = k | SHARED_QUEUE; // k为任务队列在队列数组中的索引: k == r & m & SQMASK, 在CASE3的IF判断中赋值
                 q.scanState = INACTIVE;
                 rs = lockRunState();           // publish index
                 if (rs > 0 &&  (ws = workQueues) != null &&
@@ -2738,7 +2749,9 @@ public class ForkJoinPool extends AbstractExecutorService {
      * 尝试将给定的任务添加到提交者当前队列的"submission queue"中。这种方法只直接处理(非常)最常见的路径，同时判断是否需要externalSubmit。
      *
      * @param task the task. Caller must ensure non-null. 外部的任务实现(ForkJoinTask)
-     * 一、 从外部添加给定任务到submission队列中.注意：该方法是“随机提交”
+     *
+     * 一、 从外部添加给定任务到submission队列中.注意：该方法是“随机提交”，随机提交指根据线程随机变量、任务队列数组信息，计算命中槽（即本次提交的任务应该添加到任务队列数组中的哪个队列），
+     *              如果命中且队列中任务数<1，则创建或激活一个工作线程；否则，调用externalSubmit初始化队列，并入队。
      *
      * 二、 externalPush和externalSubmit两个方法的联系：
      *      1、它们的作用都是把任务放到队列中等待执行。不同的是，externalSubmit可以说是完整版的externalPush，

@@ -2641,7 +2641,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                 throw new RejectedExecutionException();
             }
             //如果条件成立，就说明当前ForkJoinPool类中，还没有任何队列，所以要进行队列初始化
-            //for递归第一次：(rs & STARTED) == 0 为真，进行初始化
+            //for递归第一次：(rs & STARTED) == 0 为真，即表示还未启动，需要初始化，进行初始化
             //for递归第二次：已经完成初始化，下面条件均不成功，所以不会进入此分支
             /** CASE2: 线程池未初始化，则进行初始化，主要就是初始化任务队列数组；*/
             else if ((rs & STARTED) == 0 ||     // initialize 如果不是初始状态，则进行初始化
@@ -2685,6 +2685,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                         n |= n >>> 8;
                         n |= n >>> 16;
                         n = (n + 1) << 1;
+                        //初始化workQueues
                         workQueues = new WorkQueue[n];
                         ns = STARTED;   // 线程池状态转化为STARTED
                     }
@@ -3082,6 +3083,8 @@ public class ForkJoinPool extends AbstractExecutorService {
      * @throws NullPointerException if the task is null
      * @throws RejectedExecutionException if the task cannot be
      *         scheduled for execution
+     *         此方法由外部线程调用（非ForkJoinThread线程），所以任务将添加在workQueues的偶数位
+     *         叫submission队列。
      */
     public <T> ForkJoinTask<T> submit(ForkJoinTask<T> task) {
         if (task == null)

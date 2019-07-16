@@ -854,9 +854,12 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      */
     public final ForkJoinTask<V> fork() {
         Thread t;
+        // 如果调用线程为【工作线程】
         if ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread)
+            // 直接添加到线程的自身队列中(任务存入自身队列的栈顶（top）：)
             ((ForkJoinWorkerThread)t).workQueue.push(this);
         else
+            // 外部（其它线程）提交的任务
             ForkJoinPool.common.externalPush(this);
         return this;
     }

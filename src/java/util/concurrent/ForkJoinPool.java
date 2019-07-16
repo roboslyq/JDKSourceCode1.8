@@ -936,7 +936,8 @@ public class ForkJoinPool extends AbstractExecutorService {
          *
          * @param task the task. Caller must ensure non-null.
          * @throws RejectedExecutionException if array cannot be resized
-         * 当ForkJoinWorkerThread需要向双端队列中放入一个新的待执行子任务时，会调用WorkQueue中的push方法
+         * 当ForkJoinWorkerThread需要向双端队列中放入一个新的待执行子任务时，会调用WorkQueue中的push方法.
+         * 将任务存入自身队列的栈顶（top）
          */
         final void push(ForkJoinTask<?> task) {
             ForkJoinTask<?>[] a; //现有任务数组：array

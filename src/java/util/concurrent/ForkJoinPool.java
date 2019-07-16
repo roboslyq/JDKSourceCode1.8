@@ -937,14 +937,14 @@ public class ForkJoinPool extends AbstractExecutorService {
          * @param task the task. Caller must ensure non-null.
          * @throws RejectedExecutionException if array cannot be resized
          * 当ForkJoinWorkerThread需要向双端队列中放入一个新的待执行子任务时，会调用WorkQueue中的push方法.
-         * 将任务存入自身队列的栈顶（top）
+         * 将任务存入自身队列的栈顶（top）。常见的操作是ForkJionTask.fork()方法被调用。
          */
         final void push(ForkJoinTask<?> task) {
             ForkJoinTask<?>[] a; //现有任务数组：array
             ForkJoinPool p;
             int b = base,
                 s = top,
-                 n;// s - b
+                 n;// s - b，当前任务队列中还有多少个任务
             // 请注意，在执行task.fork时，触发push情况下，array不会为null
             // 因为在这之前workqueue中的array已经完成了初始化（在工作线程初始化时就完成了）
             if ((a = array) != null) {    // ignore if queue removed ，如果现在任务数据array为空，则忽略
@@ -953,20 +953,21 @@ public class ForkJoinPool extends AbstractExecutorService {
                  * 将task放入workQueue
                  * U常量是java底层的sun.misc.Unsafe操作类，这个类提供硬件级别的原子操作
                  * putOrderedObject方法在指定的对象a中，指定的内存偏移量的位置，赋予一个新的元素
+                 * 具体的偏移量为：((m & s) << ASHIFT) + ABASE
                  */
                 U.putOrderedObject(a, ((m & s) << ASHIFT) + ABASE, task);
 
                 // putOrderedInt方法对当前指定的对象中的指定字段，进行赋值操作
                 // 这里的代码意义是将workQueue对象本身中的top标示的位置 + 1，
                 U.putOrderedInt(this, QTOP, s + 1);
-                if ((n = s - b) <= 1) {
+                if ((n = s - b) <= 1) {//表示当前任务队列中只有一个任务或者0个任务
                     if ((p = pool) != null)
                         //新建或唤醒一个工作线程
                         //signalWork方法的意义在于，在当前活动的工作线程过少的情况下，创建新的工作线程
                         p.signalWork(p.workQueues, this);
                 }
                 // 如果array的剩余空间不够了，则进行增加
-                else if (n >= m)
+                else if (n >= m)//当任务队列中的任务n大于或者等于数组的大小m,表示数组已经不够，将放不下任务了，需要扩容。
                     growArray();
             }
         }

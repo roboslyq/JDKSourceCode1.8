@@ -398,7 +398,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
         //status小于0代表已完成,直接忽略wait.
         //未完成,则试着加上SIGNAL的标记,令完成任务的线程唤醒这个等待.
         if ((s = status) >= 0 && // force completer to issue notify 强制完成程序发出通知
-            U.compareAndSwapInt(this, STATUS, s, s | SIGNAL)) {
+            U.compareAndSwapInt(this, STATUS, s, s | SIGNAL)) {//更新任务状态为SIGNAL(等待唤醒)
             //加锁,只有一个线程可以进入.
             synchronized (this) {
                 //再次判断未完成.等待timeout,且忽略扰动异常.
@@ -498,17 +498,23 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * @return status upon completion
      */
     private int doJoin() {
-        int s; Thread t; ForkJoinWorkerThread wt; ForkJoinPool.WorkQueue w;
-        return (s = status) < 0 ? s ://status < 0 表示已完成,返回status,未完成再尝试后续
-                //未完成,当前线程是ForkJoinWorkerThread,从该线程中取出workQueue,并尝试将
-                //当前task出队然后执行,执行的结果是完成则返回状态,否则使用当线程池所在的ForkJoinPool的awaitJoin方法等待.
-                //一般正常情况为true
-            ((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?
-            (w = (wt = (ForkJoinWorkerThread)t).workQueue).
-            tryUnpush(this) && (s = doExec()) < 0 ? s :
-            wt.pool.awaitJoin(w, this, 0L) :
-            //当前线程不是ForkJoinWorkerThread,调用前面说的externalAwaitDone方法.
-            externalAwaitDone();
+        int s;
+        Thread t;
+        ForkJoinWorkerThread wt;
+        ForkJoinPool.WorkQueue w;
+        return (s = status) < 0 ? s//status < 0 表示已完成,返回status,未完成再尝试后续--->CASE 1.1
+                /**
+                 * 未完成,当前线程是ForkJoinWorkerThread,从该线程中取出workQueue,并尝试将
+                 * 当前task出队然后执行,执行的结果是完成则返回状态,否则使用当线程池所在的ForkJoinPool的awaitJoin方法等待.一般正常情况为true
+                 */
+             :((t = Thread.currentThread()) instanceof ForkJoinWorkerThread) ?//是forkJoinWorkThread CASE 1.2.1
+                    (w = (wt = (ForkJoinWorkerThread)t).workQueue).tryUnpush(this)//如果当前任务this刚好在top位置
+                            && (s = doExec()) < 0 //调用任务方法doExec()返回结果小于0，即已经完成。
+                            ? s : //CASE 1.3.1
+                    wt.pool.awaitJoin(w, this, 0L)//如果没有完成则加入等待。//CASE 1.3.2
+
+             //当前线程不是ForkJoinWorkerThread,调用前面说的externalAwaitDone方法.
+             :externalAwaitDone();//--->CASE 1.2.2
     }
 
     /**

@@ -1871,10 +1871,11 @@ public class ForkJoinPool extends AbstractExecutorService {
         /**
          * 又是一个递归通过改变状态来进入不同分支的流程设计模式
          */
-        while ((c = ctl) < 0L) {                       // too few active:  第一次进入此分支条件为真: ctl小于0表示活动线程较少我见过没超阀值，直接拿过来用即可。
+        while ((c = ctl) < 0L) {                       // too few active:  第一次进入此分支条件为真: ctl小于0表示活动线程较少还没超过阀值，直接拿过来用即可。
             //ctl<0意味着active的线程还没有到达阈值，只有ctl>0我们才会去讨论要不要创建或者激活新的线程。
             // 此处通过强转(int)ctl，很巧妙的拿到了ctl的低16位
             if ((sp = (int)c) == 0) {                  //no idle workers 没有空闲线程: 第一次进入此分支条件为真: ctl代表的是idle worker当低16位为0的时候，意味着此刻没有已经启动但是空闲的线程,如果在没有空闲的线程的情况下
+                //(c & ADD_WORKER) != 0L 表明(c & ADD_WORKER) < 0,即使再加1个线程，最多也就=0，不会大于0。超出阀值。
                 if ((c & ADD_WORKER) != 0L)            //  too few workers： 第一次进入此分支条件为真: 工作线程太少，创建建工作线程
                 /**
                  * 线程创建并启动的核心方法入口：创建线程并启动线程
@@ -1882,6 +1883,7 @@ public class ForkJoinPool extends AbstractExecutorService {
                     tryAddWorker(c);//工作线程太少，添加新的工作线程
                 break;
             }
+            //下面分支均为(sp = (int)c) != 0的情况,即还有idle worker,我们只需要active其中的一个即可.不需要新加
             if (ws == null)                            // unstarted/terminated
                 break;
             if (ws.length <= (i = sp & SMASK))         // terminated
@@ -2301,41 +2303,57 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     /**
      * Helps and/or blocks until the given task is done or timeout.
-     *
+     * 帮助完成任务或者阻塞直到给任务的已经完成或者超时
+     * 在ForkJoinTask.join()时被调用。
      * @param w caller
      * @param task the task
      * @param deadline for timed waits, if nonzero
      * @return task status on exit
+     * 说明： 如果当前 join 任务不在Worker等待队列的top位，或者任务执行失败，调用此方法来帮助执行或阻塞当前 join 的任务。函数执行流程如下：
+     *
+     * 由于每次调用awaitJoin都会优先执行当前join的任务，所以首先会更新currentJoin为当前join任务；
+     * 进入自旋：
+     * 首先检查任务是否已经完成（通过task.status < 0判断），如果给定任务执行完毕|取消|异常 则跳出循环返回执行状态s；
+     * 如果是 CountedCompleter 任务类型，调用helpComplete方法来完成join操作（后面笔者会开新篇来专门讲解CountedCompleter，本篇暂时不做详细解析）；
+     * 非 CountedCompleter 任务类型调用WorkQueue.tryRemoveAndExec尝试执行任务；
+     * 如果给定 WorkQueue 的等待队列为空或任务执行失败，说明任务可能被偷，调用helpStealer帮助偷取者执行任务（也就是说，偷取者帮我执行任务，我去帮偷取者执行它的任务）；
+     * 再次判断任务是否执行完毕（task.status < 0），如果任务执行失败，计算一个等待时间准备进行补偿操作；
+     * 调用tryCompensate方法为给定 WorkQueue 尝试执行补偿操作。在执行补偿期间，如果发现 资源争用|池处于unstable状态|当前Worker已终止，
+     * 则调用ForkJoinTask.internalWait()方法等待指定的时间，任务唤醒之后继续自旋
      */
     final int awaitJoin(WorkQueue w, ForkJoinTask<?> task, long deadline) {
         int s = 0;
-        if (task != null && w != null) {
+        if (task != null && w != null) { //队列和任务不为空
+            //将当前join设置为prevJoin,然后将入参task替换为当前Join
             ForkJoinTask<?> prevJoin = w.currentJoin;
             U.putOrderedObject(w, QCURRENTJOIN, task);
+            //判断是否为CountedCompleter类型的任务
             CountedCompleter<?> cc = (task instanceof CountedCompleter) ?
                 (CountedCompleter<?>)task : null;
+            //递归处理
             for (;;) {
-                if ((s = task.status) < 0)
+                if ((s = task.status) < 0)//已经完成|取消|异常 跳出循环
                     break;
-                if (cc != null)
+                if (cc != null)//CountedCompleter任务由helpComplete来完成join
                     helpComplete(w, cc, 0);
                 else if (w.base == w.top || w.tryRemoveAndExec(task))
+                    //队列为空或执行失败，任务可能被偷，帮助偷取者执行该任务
                     helpStealer(w, task);
-                if ((s = task.status) < 0)
+                if ((s = task.status) < 0)//窃取任务完成后，再次判断任务是否已经完成，如果小于0表示已经完成，直接结束
                     break;
                 long ms, ns;
                 if (deadline == 0L)
                     ms = 0L;
-                else if ((ns = deadline - System.nanoTime()) <= 0L)
+                else if ((ns = deadline - System.nanoTime()) <= 0L)//如果上面均未完成，则判断是否超时
                     break;
                 else if ((ms = TimeUnit.NANOSECONDS.toMillis(ns)) <= 0L)
                     ms = 1L;
-                if (tryCompensate(w)) {
-                    task.internalWait(ms);
-                    U.getAndAddLong(this, CTL, AC_UNIT);
+                if (tryCompensate(w)) {//执行补偿操作
+                    task.internalWait(ms);//补偿执行成功，任务等待指定时间
+                    U.getAndAddLong(this, CTL, AC_UNIT);//更新活跃线程数
                 }
             }
-            U.putOrderedObject(w, QCURRENTJOIN, prevJoin);
+            U.putOrderedObject(w, QCURRENTJOIN, prevJoin);//循环结束，替换为原来的join任务
         }
         return s;
     }

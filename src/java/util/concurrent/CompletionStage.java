@@ -42,13 +42,15 @@ import java.util.function.BiFunction;
 import java.util.concurrent.Executor;
 
 /**
- * A stage of a possibly asynchronous computation, that performs an
+ * A stage(阶段/步骤) of a possibly asynchronous computation, that performs an
  * action or computes a value when another CompletionStage completes.
+ * 异步计算的一个阶段，它在另一个CompletionStage完成时执行一个动作或计算一个值。
+ * 即实现了不同异步计算的组合，比如then ,after,and等不同关系。
  * A stage completes upon termination of its computation, but this may
  * in turn trigger other dependent stages.  The functionality defined
  * in this interface takes only a few basic forms, which expand out to
  * a larger set of methods to capture a range of usage styles: <ul>
- *
+ * 一个阶段在其计算结束时完成，但这可能反过来触发其他相关阶段。
  * <li>The computation performed by a stage may be expressed as a
  * Function, Consumer, or Runnable (using methods with names including
  * <em>apply</em>, <em>accept</em>, or <em>run</em>, respectively)
@@ -122,6 +124,17 @@ import java.util.concurrent.Executor;
  *
  * @author Doug Lea
  * @since 1.8
+ *
+ * 一、Future接口可以构建异步应用，但依然有其局限性。它很难直接表述多个Future 结果之间的依赖性。
+ *     而总的来说，接口CompletableFuture定义了可与其他Future组合成异步计算契约，把Java 5引入的Future的缺点都给完善了。
+ * 二、例如以下场景，Future很难完成：
+ *      1、将两个异步计算合并为一个——这两个异步计算之间相互独立，同时第二个又依赖于第一个的结果。
+ *      2、等待 Future 集合中的所有任务都完成。
+ *      3、仅等待 Future集合中最快结束的任务完成（有可能因为它们试图通过不同的方式计算同一个值），并返回它的结果。
+ *      4、通过编程方式完成一个Future任务的执行（即以手工设定异步操作结果的方式）。
+ *      应对 Future 的完成事件（即当 Future 的完成事件发生时会收到通知，并能使用 Future 计算的结果进行下一步的操作，
+ *      不只是简单地阻塞等待操作的结果）
+ * 三、总之，新的CompletableFuture类将使得这些成为可能。
  */
 public interface CompletionStage<T> {
 
@@ -137,6 +150,9 @@ public interface CompletionStage<T> {
      * the returned CompletionStage
      * @param <U> the function's return type
      * @return the new CompletionStage
+     * 1、当前任务完成后返回一个新的CompleionStage继续执行新任务fn.并且会将当前的结果传递给新任务。
+     * 2、thenApply中文意思“然后应用”，即执行完当前任务然后执行新的CompletionStage.
+     * 3、此处是同步的
      */
     public <U> CompletionStage<U> thenApply(Function<? super T,? extends U> fn);
 
@@ -153,6 +169,7 @@ public interface CompletionStage<T> {
      * the returned CompletionStage
      * @param <U> the function's return type
      * @return the new CompletionStage
+     * 1、与thenApply类似，只是此处是异步的执行新任务
      */
     public <U> CompletionStage<U> thenApplyAsync
         (Function<? super T,? extends U> fn);
@@ -170,6 +187,7 @@ public interface CompletionStage<T> {
      * @param executor the executor to use for asynchronous execution
      * @param <U> the function's return type
      * @return the new CompletionStage
+     * 与thenApplyAsync (Function<? super T,? extends U> fn)类似，只是此处手动指定线程池
      */
     public <U> CompletionStage<U> thenApplyAsync
         (Function<? super T,? extends U> fn,
@@ -186,6 +204,7 @@ public interface CompletionStage<T> {
      * @param action the action to perform before completing the
      * returned CompletionStage
      * @return the new CompletionStage
+     * 与thenApply类似，只是这里的新任务是一个Consumer，而不是Function
      */
     public CompletionStage<Void> thenAccept(Consumer<? super T> action);
 
@@ -201,6 +220,7 @@ public interface CompletionStage<T> {
      * @param action the action to perform before completing the
      * returned CompletionStage
      * @return the new CompletionStage
+     * 异步thenAccept
      */
     public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action);
 
@@ -216,6 +236,7 @@ public interface CompletionStage<T> {
      * returned CompletionStage
      * @param executor the executor to use for asynchronous execution
      * @return the new CompletionStage
+     * 异步thenAccept并且指定线程池
      */
     public CompletionStage<Void> thenAcceptAsync(Consumer<? super T> action,
                                                  Executor executor);
@@ -229,6 +250,7 @@ public interface CompletionStage<T> {
      * @param action the action to perform before completing the
      * returned CompletionStage
      * @return the new CompletionStage
+     * 执行Runnable
      */
     public CompletionStage<Void> thenRun(Runnable action);
 
@@ -243,6 +265,7 @@ public interface CompletionStage<T> {
      * @param action the action to perform before completing the
      * returned CompletionStage
      * @return the new CompletionStage
+     * 异步执行Runnable
      */
     public CompletionStage<Void> thenRunAsync(Runnable action);
 
@@ -257,6 +280,7 @@ public interface CompletionStage<T> {
      * returned CompletionStage
      * @param executor the executor to use for asynchronous execution
      * @return the new CompletionStage
+     * 异步执行Runnable并且自己指定线程池
      */
     public CompletionStage<Void> thenRunAsync(Runnable action,
                                               Executor executor);
@@ -275,6 +299,7 @@ public interface CompletionStage<T> {
      * @param <U> the type of the other CompletionStage's result
      * @param <V> the function's return type
      * @return the new CompletionStage
+     * 聚合两个CompletionStage的结果,具体的聚集函数为fn。
      */
     public <U,V> CompletionStage<V> thenCombine
         (CompletionStage<? extends U> other,
@@ -295,6 +320,7 @@ public interface CompletionStage<T> {
      * @param <U> the type of the other CompletionStage's result
      * @param <V> the function's return type
      * @return the new CompletionStage
+     * 异步的聚合两个CompletionStage的结果,具体的聚集函数为fn。
      */
     public <U,V> CompletionStage<V> thenCombineAsync
         (CompletionStage<? extends U> other,
@@ -316,6 +342,7 @@ public interface CompletionStage<T> {
      * @param <U> the type of the other CompletionStage's result
      * @param <V> the function's return type
      * @return the new CompletionStage
+     * 聚合两个CompletionStage的结果,具体的聚集函数为fn。并且自己指定线程池
      */
     public <U,V> CompletionStage<V> thenCombineAsync
         (CompletionStage<? extends U> other,

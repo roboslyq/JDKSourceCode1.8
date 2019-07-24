@@ -106,6 +106,32 @@ import java.util.concurrent.locks.LockSupport;
  *
  * @author Doug Lea
  * @since 1.8
+ *
+ *  Java 8中，引入了CompletableFuture类。与Future接口一起，它还实现了CompletionStage接口。此接口定义了可与其他Future组合成异步计算契约。
+ *  CompletableFuture同时是一个组合和一个框架，具有大约50种不同的构成，结合，执行异步计算步骤和处理错误。
+ *
+ * 1、CompletableFuture类实现Future接口，因此你可以将其用作Future实现，但需要额外的完成实现逻辑。
+ *
+ * public Future<String> calculateAsync() throws InterruptedException {
+ *     CompletableFuture<String> completableFuture = new CompletableFuture<>();
+ *     Executors.newCachedThreadPool().submit(() -> {
+ *         Thread.sleep(500);
+ *         completableFuture.complete("Hello");
+ *         return null;
+ *     });
+ *     return completableFuture;
+ *
+ * }
+ *
+ * //调用上述方法
+ * Future<String> completableFuture = calculateAsync();
+ * String result = completableFuture.get();
+ * assertEquals("Hello", result);
+ * 为了分离计算，我们使用了Executor API ，这种创建和完成CompletableFuture的方法可以与任何并发包（包括原始线程）一起使用。
+ * 请注意，该calculateAsync方法返回一个Future实例。
+ * 我们只是调用方法，接收Future实例并在我们准备阻塞结果时调用它的get方法。
+ * 另请注意，get方法抛出一些已检查的异常，即ExecutionException（封装计算期间发生的异常）和InterruptedException（表示执行方法的线程被中断的异常
+ * 2、
  */
 public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
 

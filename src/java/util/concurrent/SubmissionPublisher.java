@@ -326,42 +326,62 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
      * @param subscriber the subscriber
      * @throws NullPointerException if subscriber is null
      */
+    /**
+     * 1、添加指定的Subscriber，如果已经订阅则将抛出异常，同时Subscriber.onError方法将会被调用。如果添加成功，Subscriber.onSubscrie()将会被调用。如果Subscriber.onSubscrie()抛出异常，则订阅将会被取消。
+     2、如果Publisher异常关闭，Subscriber.onError也会被调用
+     3、如果Publisher正常完成，Subscriber.onComplete被调用
+     4、Subscriber通过Flow.Subscription.request(long)方法来向Publisher请求元素。也可以通过Flow.Subscription.cancel()取消订阅。
+     场景：两个不同的订阅者
+       //1、创建生产者
+        (1)SubmissionPublisher<SimpleDto> publisher = new SubmissionPublisher<>();
+        //2、创建订阅者
+        (2)Flow.Subscriber<SimpleDto> subscriber = new DemoSubscribe();
+        (3)Flow.Subscriber<SimpleDto> subscriber2 = new DemoSubscribe();
+        //3、订阅者发起订阅
+        (4)publisher.subscribe(subscriber);
+        (5)publisher.subscribe(subscriber2);
+    */
     public void subscribe(Flow.Subscriber<? super T> subscriber) {
         if (subscriber == null) throw new NullPointerException();
+        //创建一个BufferedSubscription，每一个订阅一个独立的BufferedSubscription。即每一个订阅者是有一个独立的缴存
         BufferedSubscription<T> subscription =
-            new BufferedSubscription<T>(subscriber, executor,
-                                        onNextHandler, maxBufferCapacity);
+                new BufferedSubscription<T>(subscriber, executor,
+                        onNextHandler, maxBufferCapacity);
+        //锁：因为要构造subscription链，所以需要锁。
         synchronized (this) {
+            //相当于whilt(true),一直循环直到满足条件，clients即所有的subscription集合。当代码运行到(3)时，clients为null,即b为null，因为还没有调用。
             for (BufferedSubscription<T> b = clients, pred = null;;) {
-                if (b == null) {
+                if (b == null) {//每一次订阅会进入此循环(但后面的订阅第1次for循环时不会进入，因为b不等于null,相经过后面处理后，再进入此循环)
                     Throwable ex;
-                    subscription.onSubscribe();
+                    subscription.onSubscribe();//当前subscription发起onSubscribe()事件
                     if ((ex = closedException) != null)
                         subscription.onError(ex);
                     else if (closed)
                         subscription.onComplete();
-                    else if (pred == null)
+                    else if (pred == null)//正常情况应该会进入此分支，把当前的subscription赋值给到clients中。
                         clients = subscription;
                     else
-                        pred.next = subscription;
+                        pred.next = subscription; //第二次订阅时，第一次订单的subscription为pred。pred.next为第二交订阅的subscription,从而构成链。
+                    //第1次订阅结束循环
                     break;
                 }
+                //第2次订阅直接进入此代码段，因此第一次进入已经给clients赋值，即b!=null
                 BufferedSubscription<T> next = b.next;
                 if (b.isDisabled()) { // remove
-                    b.next = null;    // detach
-                    if (pred == null)
+                    b.next = null;    // detach（分离，方便GC）
+                    if (pred == null) //移除B节点后，并且pred节点为空，此时next为产节点
                         clients = next;
                     else
-                        pred.next = next;
+                        pred.next = next;//pred不为空，将pred.next指向next
                 }
                 else if (subscriber.equals(b.subscriber)) {
                     b.onError(new IllegalStateException("Duplicate subscribe"));
                     break;
                 }
                 else
-                    pred = b;
-                b = next;
-            }
+                    pred = b; //正常情况进入此分支，前b节点往前移，
+                b = next;//此next为空,会跳转到for循环开头，b==null重新处理第二次订阅的subscription
+            }//for循环结束
         }
     }
 
@@ -387,29 +407,48 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
      * @throws NullPointerException if item is null
      * @throws RejectedExecutionException if thrown by Executor
      */
+
+    /**
+     * 1、通过调用订阅者的Flow.Subscriber#onNext(Object)方法，异步推送推定的元素给当前的所有订阅者。如果有任何的订阅者不可用，会发生阻塞直接可用。
+     2、此方法返回所有已经推送给所有订阅者但还没有消费的元素个数预估值。如果当前订阅者不为空，，此返回值应该至少有一条(当前提交的这一条元素)。如果所有订阅都为空(即没有发生订阅)则返回0.
+     */
+      /*
+    * 场景：两个不同的订阅者
+        //初始化事件源,此值如果大于256(即BufferdSubscription中的缓存值，Publisher则会被阻塞。)
+        DtoHelper.getSimpleDtos(250)
+                .forEach(                   //遍列事件源
+                        simpleDto -> {
+                            print("生产元素：" + simpleDto.getName());
+                            publisher.submit(simpleDto);   //每一次遍列发一条消息给订阅者
+                        }
+                );
+    */
     public int submit(T item) {
         if (item == null) throw new NullPointerException();
-        int lag = 0;
+        int lag = 0;//元素起始标识，为0
         boolean complete;
         synchronized (this) {
             complete = closed;
-            BufferedSubscription<T> b = clients;
+            BufferedSubscription<T> b = clients;//所有的subscription链的head元素
             if (!complete) {
                 BufferedSubscription<T> pred = null, r = null, rtail = null;
-                while (b != null) {
+                while (b != null) {//正常情况b不为Null
+                    //取出当前节点的下一个节点(subscription)
                     BufferedSubscription<T> next = b.next;
+                    //开始向b发送元素，offer是异步操作
                     int stat = b.offer(item);
-                    if (stat < 0) {           // disabled
+                    // disabled(b不可用，移除b,重新构造subscription链)
+                    if (stat < 0) {
                         b.next = null;
                         if (pred == null)
                             clients = next;
                         else
                             pred.next = next;
                     }
-                    else {
-                        if (stat > lag)
+                    else {//b正常
+                        if (stat > lag)//正常，更新状态
                             lag = stat;
-                        else if (stat == 0) { // place on retry list
+                        else if (stat == 0) { // place on retry list（异常，放在重试链中）
                             b.nextRetry = null;
                             if (rtail == null)
                                 r = b;
@@ -417,13 +456,17 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
                                 rtail.nextRetry = b;
                             rtail = b;
                         }
+                        //临时链
                         pred = b;
                     }
+                    //取出下一个节点（subscription）为当前节点，不断循环，从而实现多个订阅顺序发送消息
                     b = next;
                 }
+                //当重试链不为空时，进行重试
                 while (r != null) {
                     BufferedSubscription<T> nextRetry = r.nextRetry;
                     r.nextRetry = null;
+                    //r.submit(item)是阻塞操作。r = BufferedSubscription
                     int stat = r.submit(item);
                     if (stat > lag)
                         lag = stat;
@@ -925,6 +968,8 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
      * point another task is created when needed. The dual Runnable
      * and ForkJoinTask declaration saves overhead when executed by
      * ForkJoinPools, without impacting other kinds of Executors.
+     * 对消费者的任务抽象，继承于ForkJoinTask,同时实现Runnable和CompletableFuture.AsynchronousCompletionTask接口
+     *
      */
     @SuppressWarnings("serial")
     static final class ConsumerTask<T> extends ForkJoinTask<Void>
@@ -935,7 +980,16 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
         }
         public final Void getRawResult() { return null; }
         public final void setRawResult(Void v) {}
+
+        /**
+         * 调用Consumer（BufferedSubscription）消费事件
+         * @return
+         */
         public final boolean exec() { consumer.consume(); return false; }
+        /**
+         * 调用Consumer（BufferedSubscription）消费事件
+         * @return
+         */
         public final void run() { consumer.consume(); }
     }
 
@@ -1065,19 +1119,22 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
          * Tries to add item and start consumer task if necessary.
          * @return -1 if disabled, 0 if dropped, else estimated lag
          */
+        //subscription向subscriber推送元素,不阻塞，会丢弃元素
         final int offer(T item) {
             int h = head, t = tail, cap, size, stat;
-            Object[] a = array;
+            Object[] a = array;//缓存
             if (a != null && (cap = a.length) > 0 && cap >= (size = t + 1 - h)) {
+                //缓存正常
                 a[(cap - 1) & t] = item;    // relaxed writes OK
                 tail = t + 1;
                 stat = size;
             }
-            else
+            else//缓存不够，扩容
                 stat = growAndAdd(a, item);
             return (stat > 0 &&
                     (ctl & (ACTIVE | CONSUME)) != (ACTIVE | CONSUME)) ?
-                startOnOffer(stat) : stat;
+                    //根据条件，启动消费线程startOnOffer()
+                    startOnOffer(stat) : stat;
         }
 
         /**
@@ -1099,14 +1156,14 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
             else {
                 VarHandle.fullFence();           // recheck
                 int h = head, t = tail, size = t + 1 - h;
-                if (cap >= size) {
+                if (cap >= size) {//正常扩容，将元素存放，但alloc为false,因为元素已经存放好了
                     a[(cap - 1) & t] = item;
                     tail = t + 1;
                     stat = size;
                     alloc = false;
                 }
                 else if (cap >= maxCapacity) {
-                    stat = 0;                    // cannot grow
+                    stat = 0;                    // cannot grow(不能扩容，已达到容量最在值，直接丢弃)
                     alloc = false;
                 }
                 else {
@@ -1114,7 +1171,7 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
                     alloc = true;
                 }
             }
-            if (alloc) {
+            if (alloc) {//允许存放元素，具体扩容实现
                 int newCap = (cap > 0) ? cap << 1 : 1;
                 if (newCap <= cap)
                     stat = 0;
@@ -1139,7 +1196,7 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
                                 int k = j & mask;
                                 Object x = QA.getAcquire(a, k);
                                 if (x != null && // races with consumer
-                                    QA.compareAndSet(a, k, x, null))
+                                        QA.compareAndSet(a, k, x, null))
                                     newArray[j & newMask] = x;
                             }
                         }
@@ -1155,12 +1212,18 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
          * Spins/helps/blocks while offer returns 0.  Called only if
          * initial offer return 0.
          */
+        /**
+         * Spins/helps/blocks while offer returns 0.  Called only if
+         * initial offer return 0.
+         * 会阻塞，不会丢弃元素。Publisher.submit()失败时，会在重试链中触发此方法，进行阻塞。
+         */
         final int submit(T item) {
             int stat;
-            if ((stat = offer(item)) == 0) {
+            if ((stat = offer(item)) == 0) {//调用offer添加元素，如果stat>0,表示成功，直接返回stat值即可。stat <0 表示不可用，在调用处处理掉与之对应的Subscription即可。如果=0，则表示需要阻塞等待。
                 putItem = item;
-                timeout = 0L;
+                timeout = 0L;//阻塞等待，默认永远不超时
                 putStat = 0;
+                //使用ForkJoinPool.helpAsyncBlocker(executor, this)帮助消费者执行消费，如果成功，则直接返回，helpAsyncBlocker()里面会使用CurrentThread进行处理。
                 ForkJoinPool.helpAsyncBlocker(executor, this);
                 if ((stat = putStat) == 0) {
                     try {
@@ -1203,29 +1266,36 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
          * Tries to start consumer task after offer.
          * @return -1 if now disabled, else argument
          */
+        /**
+         * Tries to start consumer task after offer.
+         * @return -1 if now disabled, else argument
+        在offer元素到缓存array之后，启动消费者线程进行消费。
+         */
         private int startOnOffer(int stat) {
             for (;;) {
                 Executor e; int c;
+                //条件判断中给e赋值，
                 if ((c = ctl) == DISABLED || (e = executor) == null) {
                     stat = -1;
                     break;
                 }
                 else if ((c & ACTIVE) != 0) { // ensure keep-alive
                     if ((c & CONSUME) != 0 ||
-                        CTL.compareAndSet(this, c, c | CONSUME))
+                            CTL.compareAndSet(this, c, c | CONSUME))
                         break;
                 }
                 else if (demand == 0L || tail == head)
                     break;
                 else if (CTL.compareAndSet(this, c, c | (ACTIVE | CONSUME))) {
                     try {
+                        //正常消费入口，
                         e.execute(new ConsumerTask<T>(this));
                         break;
                     } catch (RuntimeException | Error ex) { // back out
                         do {} while (((c = ctl) & DISABLED) == 0 &&
-                                     (c & ACTIVE) != 0 &&
-                                     !CTL.weakCompareAndSet
-                                     (this, c, c & ~ACTIVE));
+                                (c & ACTIVE) != 0 &&
+                                !CTL.weakCompareAndSet
+                                        (this, c, c & ~ACTIVE));
                         throw ex;
                     }
                 }
@@ -1281,11 +1351,13 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
         /**
          * Tries to start consumer task upon a signal or request;
          * disables on failure.
+         * 尝试启动consumer,即发起onSubscribe()事件
          */
         private void startOrDisable() {
             Executor e;
             if ((e = executor) != null) { // skip if already disabled
                 try {
+                    //调用线程池，其中this为subscription。
                     e.execute(new ConsumerTask<T>(this));
                 } catch (Throwable ex) {  // back out and force signal
                     for (int c;;) {
@@ -1313,13 +1385,18 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
             }
         }
 
+        /**
+         * 开始订阅
+         */
         final void onSubscribe() {
             for (int c;;) {
+                //如果当前Submission状态不可用,直接中断
                 if ((c = ctl) == DISABLED)
                     break;
                 if (CTL.compareAndSet(this, c,
                                       c | (ACTIVE | CONSUME | SUBSCRIBE))) {
                     if ((c & ACTIVE) == 0)
+                        //进入启动方法
                         startOrDisable();
                     break;
                 }
@@ -1430,20 +1507,25 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
          * Consumer loop, called from ConsumerTask, or indirectly
          * when helping during submit.
          */
+        //消费任务入口，由ConsumerTask进行包装，然后由Executor框架调用
         final void consume() {
             Flow.Subscriber<? super T> s;
             int h = head;
+            //将当前的subscription对应的subscriber赋值给s
             if ((s = subscriber) != null) {           // else disabled
                 for (;;) {
                     long d = demand;
                     int c; Object[] a; int n, i; Object x; Thread w;
                     if (((c = ctl) & (ERROR | SUBSCRIBE | DISABLED)) != 0) {
+                        //检查条件：各种状态控制，大多使用位运算判断值
                         if (!checkControl(s, c))
                             break;
                     }
+                    //如果没有可消费的元素，
                     else if ((a = array) == null || h == tail ||
-                             (n = a.length) == 0 ||
-                             (x = QA.getAcquire(a, i = (n - 1) & h)) == null) {
+                            (n = a.length) == 0 ||
+                            //通过QA，从缓存array中获取待消费的元素
+                            (x = QA.getAcquire(a, i = (n - 1) & h)) == null) {
                         if (!checkEmpty(s, c))
                             break;
                     }
@@ -1452,16 +1534,19 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
                             break;
                     }
                     else if (((c & CONSUME) != 0 ||
-                              CTL.compareAndSet(this, c, c | CONSUME)) &&
-                             QA.compareAndSet(a, i, x, null)) {
+                            CTL.compareAndSet(this, c, c | CONSUME)) &&
+                            QA.compareAndSet(a, i, x, null)) {
                         HEAD.setRelease(this, ++h);
                         DEMAND.getAndAdd(this, -1L);
                         if ((w = waiter) != null)
                             signalWaiter(w);
                         try {
+                            //强转
                             @SuppressWarnings("unchecked") T y = (T) x;
+                            //调用subscription的onNext()，正常消费元素
                             s.onNext(y);
                         } catch (Throwable ex) {
+                            //处理异常
                             handleOnNext(s, ex);
                         }
                     }
@@ -1554,6 +1639,7 @@ public class SubmissionPublisher<T> implements Flow.Publisher<T>,
         }
 
         // VarHandle mechanics
+        // VarHanler 是Java9中新增的类
         private static final VarHandle CTL;
         private static final VarHandle TAIL;
         private static final VarHandle HEAD;

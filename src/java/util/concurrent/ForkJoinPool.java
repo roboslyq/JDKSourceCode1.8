@@ -3045,7 +3045,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      * using {@code ex.printStackTrace()}) of both the current thread
      * as well as the thread actually encountering the exception;
      * minimally only the latter.
-     *
+     * 同步的任务提交，阻塞直到任务完成并返回结果。可参考execute(ForkJoinTask<T> task)和invoke(ForkJoinTask<T> task)
      * @param task the task
      * @param <T> the type of the task's result
      * @return the task's result
@@ -3062,7 +3062,7 @@ public class ForkJoinPool extends AbstractExecutorService {
 
     /**
      * Arranges for (asynchronous) execution of the given task.
-     *
+     * 异步的任务提交，没有返回值。可参考submit(ForkJoinTask<T> task)和invoke(ForkJoinTask<T> task)
      * @param task the task
      * @throws NullPointerException if the task is null
      * @throws RejectedExecutionException if the task cannot be

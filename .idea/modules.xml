@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/JDKSourceCode1.8.iml" filepath="$PROJECT_DIR$/JDKSourceCode1.8.iml" />
+      <module fileurl="file://$PROJECT_DIR$/source-learn/source-learn.iml" filepath="$PROJECT_DIR$/source-learn/source-learn.iml" />
     </modules>
   </component>
 </project>

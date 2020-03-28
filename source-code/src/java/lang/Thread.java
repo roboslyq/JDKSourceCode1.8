@@ -973,7 +973,7 @@ class Thread implements Runnable {
             checkAccess();
 
         synchronized (blockerLock) {
-            Interrupti ble b = blocker;
+            Interruptible b = blocker;
             if (b != null) {
                 interrupt0();           // Just to set the interrupt flag
                 b.interrupt(this);

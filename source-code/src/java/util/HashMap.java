@@ -606,6 +606,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      *         <tt>null</tt> if there was no mapping for <tt>key</tt>.
      *         (A <tt>null</tt> return can also indicate that the map
      *         previously associated <tt>null</tt> with <tt>key</tt>.)
+     *         保存Key : value
      */
     public V put(K key, V value) {
         return putVal(hash(key), key, value, false, true);

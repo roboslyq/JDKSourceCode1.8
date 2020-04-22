@@ -10,6 +10,7 @@ public class Test1 {
         map.put("1","1");
         ArrayList arrayList = new ArrayList();
         arrayList.add("a");
+
         System.out.println(arrayList.get(0));
     }
 }
